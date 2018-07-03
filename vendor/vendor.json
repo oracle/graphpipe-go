@@ -1,0 +1,43 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "jc/kgOJNacek94rHKuFgIsjWwZw=",
+			"path": "github.com/Sirupsen/logrus",
+			"revision": "ea8897e79973357ba785ac2533559a6297e83c44",
+			"revisionTime": "2018-05-23T07:42:43Z"
+		},
+		{
+			"checksumSHA1": "qFaKrhSla38BRAyaGz2UaZvH/Dk=",
+			"path": "github.com/coreos/bbolt",
+			"revision": "af9db2027c98c61ecd8e17caa5bd265792b9b9a2",
+			"revisionTime": "2018-03-18T00:15:26Z"
+		},
+		{
+			"checksumSHA1": "rpUDWHC5vDOMn9ttHQjAtV/eLaM=",
+			"path": "github.com/google/flatbuffers/go",
+			"revision": "c7a797b9669b3c9cd42b9e9989b0c19428412ec2",
+			"revisionTime": "2018-06-04T19:02:08Z"
+		},
+		{
+			"checksumSHA1": "BGm8lKZmvJbf/YOJLeL1rw2WVjA=",
+			"path": "golang.org/x/crypto/ssh/terminal",
+			"revision": "df8d4716b3472e4a531c33cedbe537dae921a1a9",
+			"revisionTime": "2018-04-26T19:26:21Z"
+		},
+		{
+			"checksumSHA1": "VUb+SqeoloAw1A2Jz9IzkDNs06c=",
+			"path": "golang.org/x/sys/unix",
+			"revision": "c11f84a56e43e20a78cee75a7c034031ecf57d1f",
+			"revisionTime": "2018-05-25T13:55:20Z"
+		},
+		{
+			"checksumSHA1": "m5QCvoZ2KaoLTG9VWjYNonM08b8=",
+			"path": "golang.org/x/sys/windows",
+			"revision": "c11f84a56e43e20a78cee75a7c034031ecf57d1f",
+			"revisionTime": "2018-05-25T13:55:20Z"
+		}
+	],
+	"rootPath": "github.com/oracle/graphpipe-go"
+}

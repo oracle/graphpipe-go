@@ -1,0 +1,111 @@
+NAME=graphpipe-tf
+TF_TYPE?=gpu
+TF_DIR=/usr/local
+SUDO=sudo
+LIBTF_IMAGE=libtensorflow
+GRAPHPIPETF_IMAGE=graphpipe-tf
+DOCKER=docker
+
+ifeq ('$(USE_SUDO)', '0')
+	SUDO=
+endif
+
+ifeq ('$(TF_TYPE)', 'gpu')
+	DOCKER=nvidia-docker
+	LD_STUBS=LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs/:$$LD_LIBRARY_PATH
+endif
+
+.PHONY: $(NAME)
+
+$(NAME):
+	$(LD_STUBS) go build
+
+in-docker:
+	docker run -it --rm \
+		-v $(PWD)/../../:/go/src/github.com/oracle/graphpipe-go \
+		-w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-tf \
+		-e http_proxy=$(http_proxy) \
+		-e https_proxy=$(https_proxy) \
+		-v $$(dirname $(SSH_AUTH_SOCK)):$$(dirname $(SSH_AUTH_SOCK)) \
+		-e SSH_AUTH_SOCK=$(SSH_AUTH_SOCK) \
+		-e USE_SUDO=0 \
+		-e CHOWN=$$(id -u):$$(id -g) \
+		$(LIBTF_IMAGE):$(TF_TYPE)-dev \
+		/usr/bin/make install-govendor install-tensorflow deps $(TF_TYPE) graphpipe-tf fix-perms
+
+cpu:
+	# pass
+
+gpu:
+	ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/libcuda.so.1
+
+dev-container:
+	docker build \
+		-f Dockerfile.$(TF_TYPE)-dev \
+		-t $(LIBTF_IMAGE):$(TF_TYPE)-dev \
+		--build-arg http_proxy=$(http_proxy) \
+		--build-arg https_proxy=$(https_proxy) \
+		.
+
+runtime-container:
+	docker build \
+		-f Dockerfile.$(TF_TYPE) \
+		-t $(GRAPHPIPETF_IMAGE):$(TF_TYPE) \
+		--build-arg http_proxy=$(http_proxy) \
+		--build-arg https_proxy=$(https_proxy) \
+		.
+
+install-go:
+	apt install golang-go
+
+install-govendor:
+	@if [ ! -e $(GOPATH)/bin/govendor ]; then \
+		go get -u github.com/kardianos/govendor; \
+	fi
+
+govendor:
+	@if [ ! -e $(GOPATH)/bin/govendor ]; then \
+		echo "You need govendor: go get -u github.com/kardianos/govendor" && exit 1; \
+	fi
+
+graphpipe-go-deps:
+	cd ../../ && make deps
+
+go-deps: govendor
+	$(GOPATH)/bin/govendor sync -v
+
+install-tensorflow:
+	@if [ ! -e /usr/local/include/tensorflow/c/c_api.h ]; then \
+		curl -L "https://storage.googleapis.com/tensorflow/libtensorflow/libtensorflow-$(TF_TYPE)-linux-x86_64-1.8.0.tar.gz" | \
+			$(SUDO) tar -C $(TF_DIR) -xz; \
+	fi
+
+tensorflow:
+	@if [ ! -e /usr/local/include/tensorflow/c/c_api.h ]; then \
+		echo "You need tensorflow installed: https://www.tensorflow.org/install/install_go" && exit 1; \
+	fi
+
+fix-perms:
+	@if [ -n "$${CHOWN}" ]; then \
+		chown -R $${CHOWN} vendor $(NAME) ../../vendor; \
+	fi
+
+PROTOC=protoc
+TF=$(GOPATH)/src/github.com/tensorflow/tensorflow
+PROTOS = $(TF)/tensorflow/core/protobuf/config.proto \
+	$(TF)/tensorflow/core/protobuf/debug.proto \
+	$(TF)/tensorflow/core/protobuf/cluster.proto \
+	$(TF)/tensorflow/core/protobuf/rewriter_config.proto
+
+protobuf:
+	go get github.com/gogo/protobuf/proto
+	go get github.com/gogo/protobuf/gogoproto
+	go get github.com/tensorflow/tensorflow/tensorflow/go
+	cd protoc-gen-gogotf && go install
+	PATH=$(GOPATH)/bin:$(PATH) $(PROTOC) -I$(TF)/ $(TF)/tensorflow/core/framework/*.proto --gogotf_out=internal/
+	PATH=$(GOPATH)/bin:$(PATH) $(PROTOC) -I$(TF)/ $(PROTOS) --gogotf_out=internal/
+	sed -i 's;github.com/tensorflow;github.com/oracle/graphpipe-go/cmd/graphpipe-tf/internal/github.com/tensorflow;g' internal/github.com/tensorflow/tensorflow/tensorflow/go/core/protobuf/*.pb.go
+
+deps: graphpipe-go-deps go-deps tensorflow
+
+all: $(NAME)

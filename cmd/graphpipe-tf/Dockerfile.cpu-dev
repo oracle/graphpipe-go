@@ -1,0 +1,10 @@
+FROM golang:1.10
+RUN apt update
+RUN apt install -y git curl
+ENV TF_TYPE=cpu
+ENV TF_DIR=/usr/local
+RUN git config --global url."git@github.com:".insteadOf "https://github.com/"
+RUN go get -u github.com/kardianos/govendor
+RUN curl -L "https://storage.googleapis.com/tensorflow/libtensorflow/libtensorflow-${TF_TYPE}-linux-x86_64-1.8.0.tar.gz" | tar -C ${TF_DIR} -xz
+RUN mkdir -p /root/.ssh
+RUN ssh-keyscan github.com >> ~/.ssh/known_hosts

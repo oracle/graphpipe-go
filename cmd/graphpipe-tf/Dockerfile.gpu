@@ -1,0 +1,7 @@
+FROM nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04
+ENV TF_TYPE=gpu
+ENV TF_DIR=/usr/local
+ADD https://storage.googleapis.com/tensorflow/libtensorflow/libtensorflow-${TF_TYPE}-linux-x86_64-1.8.0.tar.gz libtensorflow.tar.gz
+RUN tar -C ${TF_DIR} -xzf libtensorflow.tar.gz
+COPY graphpipe-tf /
+ENTRYPOINT /graphpipe-tf

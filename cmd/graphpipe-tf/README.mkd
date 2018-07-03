@@ -1,0 +1,74 @@
+# graphpipe-tf - Serve TensorFlow Models via Graphpipe
+
+The headlines are true! You can serve your TF models via graphpipe
+easily using this server.
+
+## Quickstart
+
+Prereqs:
+  - libtensorflow: https://www.tensorflow.org/install/install_go or `make install-tensorflow`
+  - govendor: https://github.com/kardianos/govendor or `make install-govendor`
+
+
+```
+  export TF_TYPE=cpu
+  make deps && make
+
+  # or
+
+  make in-docker  # just do it all in docker
+```
+
+Should get you a CPU-build, or tell you what dependencies you need
+to do so (see Prereqs above).
+
+For the GPU build the same more or less applies but you need to have
+all the Nvidia CUDA stuff installed and supported on your system (or
+just have it supported, and have nvidia-docker).
+
+```
+  export TF_TYPE=gpu
+  make deps && make
+
+  # or
+
+  make in-docker  # just do it all in docker
+```
+
+## Building Containers
+
+If you're a developer of graphpipe, you may need to at some point
+build a new dev-container:
+
+```
+  make dev-container
+```
+
+And if you are deploying changes, you may need to make a new runtime
+container:
+
+```
+  make runtime-container
+```
+
+And if things seem broken, try dropping into a shell in your dev
+container and figure things out:
+
+```
+  make shell
+```
+
+## Troubleshooting
+
+### govendor can't fetch private libs
+The in-docker setup _should_ forward `ssh-agent`s correctly if you
+have it set up on your systems. Don't forget to `ssh-add` your key!
+
+This link might be helpful: https://developer.github.com/v3/guides/using-ssh-agent-forwarding/
+
+### proxies :(
+Proxying should be forwarded for all our commands, but you may need
+to configure your docker runtime to use them as well. Probably lives
+(or needs to be created) at:
+
+  `/etc/systemd/system/docker.service.d/http-proxy.conf`

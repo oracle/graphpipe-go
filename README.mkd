@@ -1,0 +1,41 @@
+# graphpipe-go - when the pipe comes a'callin you better be graphin it
+
+`graphpipe-go` provides a variety of functions to help you easily serve
+and access models using the very speedy `graphpipe` protocol.
+
+## Serving Models
+
+There are two Serve functions, Serve and ServeRaw, that both create
+standard Go http listeners and support caching with BoltDB.
+
+### Serve
+
+For applications where the manipulation of tensors will mostly be in
+Go, Serve provides a wrapper to your `apply` function that allows
+you to work with standard go types rather than explicit `graphpipe`
+data objects and converts between them for you. From the Go docs:
+
+```
+// Serve offers multiple inputs and outputs and converts tensors
+// into native datatypes based on the shapes passed in to this function
+// plus any additional shapes implied by your apply function.
+// If cache is true, will attempt to cache using cache.db as cacheFile
+```
+
+### ServeRaw
+
+For applications that will be passing the tensors directly to another
+system for processing and don't need conversion to standard Go types,
+ServeRaw provides a lower-level interface.
+
+As you might expect, Serve uses ServeRaw underneath the hood.
+
+## Accessing Models
+
+In similar fashion to the serving model, the client for making remote
+calls is made up of three functions, Remote, MultiRemote, and
+MultiRemoteRaw.
+
+The first two of those will convert your native Go types into tensors
+and back, while the last one uses `graphpipe` tensors throughout.
+

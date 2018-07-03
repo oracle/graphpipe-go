@@ -1,0 +1,17 @@
+FROM nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04
+RUN apt update
+RUN apt install -y software-properties-common
+RUN add-apt-repository ppa:gophers/archive
+RUN apt update
+RUN apt install -y git curl
+RUN apt install -y golang-1.10-go
+ENV PATH=/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/go-1.10/bin:/go/bin
+ENV GOPATH=/go
+ENV TF_TYPE=gpu
+ENV TF_DIR=/usr/local
+RUN mkdir -p /go/src
+RUN git config --global url."git@github.com:".insteadOf "https://github.com/"
+RUN go get -u github.com/kardianos/govendor
+RUN curl -L "https://storage.googleapis.com/tensorflow/libtensorflow/libtensorflow-${TF_TYPE}-linux-x86_64-1.8.0.tar.gz" | tar -C ${TF_DIR} -xz
+RUN mkdir -p /root/.ssh
+RUN ssh-keyscan github.com >> ~/.ssh/known_hosts

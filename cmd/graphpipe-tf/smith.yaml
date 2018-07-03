@@ -1,0 +1,4 @@
+package: https://odxml:26467dafb0f2cae81e98aff21a291e0a754ef528616ba6f1adbe03cb8c333ce3@wcr.io/odxml/tureen-tensorflow:dev
+paths:
+ - /root/tureen-tensorflow
+ - /usr/local/cuda-8.0/targets/x86_64-linux/lib/libcublas.so.8.0
