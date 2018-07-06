@@ -90,7 +90,7 @@ func main() {
 	f.StringVarP(&opts.stateDir, "dir", "d", "~/.graphpipe-tf", "dir for local state")
 	f.StringVarP(&opts.listen, "listen", "l", "127.0.0.1:9000", "listen string")
 	f.StringVarP(&opts.model, "model", "m", "", "model to load")
-	f.StringVarP(&opts.inputs, "inputs", "i", "", "comman seprated default inputs")
+	f.StringVarP(&opts.inputs, "inputs", "i", "", "comma seprated default inputs")
 	f.StringVarP(&opts.outputs, "outputs", "o", "", "comma separated default outputs")
 	f.BoolVarP(&opts.nocache, "nocache", "n", false, "do not cache results")
 	f = cmd.PersistentFlags()
