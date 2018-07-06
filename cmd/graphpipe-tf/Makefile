@@ -15,10 +15,24 @@ ifeq ('$(TF_TYPE)', 'gpu')
 	LD_STUBS=LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs/:$$LD_LIBRARY_PATH
 endif
 
+sha = $(shell git rev-parse --short HEAD | tr -d ' \n')
+ifeq ($(VERSION),)
+VERSION = $(shell git describe --tags --match 'v*.*.*' | tr -d 'v \n')
+realv = $(shell echo $(VERSION) | cut -d- -f1)
+ifneq ($(VERSION),$(realv))
+commits = $(shell echo $(VERSION) | cut -d- -f2)
+VERSION := $(realv).$(commits).$(sha)
+endif
+endif
+dirty = $(shell git diff --shortstat 2> /dev/null | tail -n1 | tr -d ' \n')
+ifneq ($(dirty),)
+VERSION := $(VERSION).dev
+endif
+
 .PHONY: $(NAME)
 
 $(NAME):
-	$(LD_STUBS) go build
+	$(LD_STUBS) go build -ldflags '-X "main.ver=$(VERSION)" -X "main.sha=$(sha)"'
 
 in-docker:
 	docker run -it --rm \
