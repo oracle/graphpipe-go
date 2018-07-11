@@ -28,7 +28,7 @@ func TensorToNativeTensor(t *graphpipefb.Tensor) *NativeTensor {
 		for i := 0; i < len(vals); i++ {
 			vals[i] = string(t.StringVal(i))
 		}
-		nt.InitWithStringVals(vals, shape, t.Type())
+		nt.InitWithStringVals(vals, shape)
 	} else {
 		nt.InitWithData(t.DataBytes(), shape, t.Type())
 	}
