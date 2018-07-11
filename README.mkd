@@ -1,7 +1,7 @@
 # graphpipe-go - when the pipe comes a'callin you better be graphin it
 
 `graphpipe-go` provides a variety of functions to help you easily serve
-and access models using the very speedy `graphpipe` protocol.
+and access ml models using the very speedy `graphpipe` protocol.
 
 ## Serving Models
 
@@ -20,6 +20,33 @@ data objects and converts between them for you. From the Go docs:
 // into native datatypes based on the shapes passed in to this function
 // plus any additional shapes implied by your apply function.
 // If cache is true, will attempt to cache using cache.db as cacheFile
+```
+
+As an example, here is a simple way to construct a graphpipe identity
+ server, which can receive a graphpipe network request, and echo it back
+to the client:
+
+```
+package main
+
+import (
+    "github.com/Sirupsen/logrus"
+    graphpipe "github.com/oracle/graphpipe-go"
+)
+
+func main() {
+    logrus.SetLevel(logrus.InfoLevel)
+    useCache = false  // toggle caching on/off
+    inShapes = outShapes = nil // Optionally set input/output shapes
+    if err := graphpipe.Serve("0.0.0.0:9000", useCache, apply, inShapes, outShapes); err != nil {
+        logrus.Errorf("Failed to serve: %v", err)
+    }
+}
+
+func apply(requestContext *graphpipe.RequestContext, ignore string, in interface{}) interface{} {
+    return in  // using the graphpipe.Serve interface, graphpipe automatically converts
+               // go native types to tensors.
+}
 ```
 
 ### ServeRaw
