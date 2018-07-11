@@ -93,7 +93,7 @@ func (t *Nt) tensorFromIndexes(indexes []int) *NativeTensor {
 				stringVals[i*t.dlen+j] = t.tensor.StringVals[index*t.dlen+j]
 			}
 		}
-		nt.InitWithStringVals(stringVals, shape, t.tensor.Type)
+		nt.InitWithStringVals(stringVals, shape)
 	} else {
 		data := []byte{}
 		for _, i := range indexes {

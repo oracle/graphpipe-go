@@ -48,3 +48,69 @@ func TestNativeTensorString(t *testing.T) {
 	b := fb.NewBuilder(1024)
 	nt.Build(b)
 }
+
+func TestInitWithData(t *testing.T) {
+	nt := &NativeTensor{}
+	dataLen := int(255)
+	data := make([]byte, dataLen)
+
+	for i, _ := range data {
+		data[i] = byte(i % dataLen)
+	}
+
+	shape := make([]int64, 1)
+	shape[0] = int64(dataLen)
+	err := nt.InitWithData(data, shape, graphpipefb.TypeInt8)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	builder := fb.NewBuilder(1024)
+	nt.Build(builder)
+}
+
+func TestInitWithInvalidData(t *testing.T) {
+	nt := &NativeTensor{}
+	dataLen := int(255)
+	data := make([]byte, dataLen)
+
+	for i, _ := range data {
+		data[i] = byte(i % dataLen)
+	}
+
+	shape := make([]int64, 1)
+	shape[0] = int64(dataLen) - 1 // invalid shape
+	err := nt.InitWithData(data, shape, graphpipefb.TypeInt8)
+	if err == nil {
+		t.Fatal("Expecting an error to be returned for mis-shaped data")
+	}
+}
+
+func TestInitWithStringVals(t *testing.T) {
+	nt := &NativeTensor{}
+	strings := []string{"a", "b", "c", "d"}
+
+	shape := make([]int64, 2)
+	shape[0] = 2
+	shape[1] = 2
+	err := nt.InitWithStringVals(strings, shape)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	builder := fb.NewBuilder(1024)
+	nt.Build(builder)
+}
+
+func TestInitWithInvalidStringVals(t *testing.T) {
+	nt := &NativeTensor{}
+	strings := []string{"a", "b", "c", "d"}
+
+	shape := make([]int64, 2)
+	shape[0] = 2
+	shape[1] = 3 // Too big!
+	err := nt.InitWithStringVals(strings, shape)
+	if err == nil {
+		t.Fatal("Expecting an error to be returned for mis-shaped data")
+	}
+}
