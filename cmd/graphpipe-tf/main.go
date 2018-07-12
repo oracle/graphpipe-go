@@ -147,7 +147,7 @@ func getSessionOpts() (*tf.SessionOptions, error) {
 	return &tf.SessionOptions{Config: data}, nil
 }
 
-func initializeMetadata(c *tfContext) *graphpipe.NativeMetadataResponse {
+func initializeMetadata(opts options, c *tfContext) *graphpipe.NativeMetadataResponse {
 	c.outputs = map[string]tf.Output{}
 	ops := c.model.Graph.Operations()
 	opMap := map[string]tf.Operation{}
@@ -176,7 +176,7 @@ func initializeMetadata(c *tfContext) *graphpipe.NativeMetadataResponse {
 		}
 	}
 	meta := &graphpipe.NativeMetadataResponse{}
-	meta.Name = "graphpipe tensorflow model server"
+	meta.Name = opts.model
 	meta.Description = "Implementation of tensorflow model server using graphpipe.  Use a graphpipe client to make requests to this server."
 	meta.Server = "graphpipe-tf"
 	meta.Version = version()
@@ -300,7 +300,7 @@ func serve(opts options) error {
 		cachePath = filepath.Join(opts.stateDir, fmt.Sprintf("%x.db", c.modelHash))
 	}
 
-	c.meta = initializeMetadata(c)
+	c.meta = initializeMetadata(opts, c)
 
 	first := c.graphDef.Node[0].Name + ":0"
 	last := c.graphDef.Node[len(c.graphDef.Node)-1].Name + ":0"

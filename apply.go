@@ -74,7 +74,7 @@ func BuildSimpleApply(apply interface{}, inShapes, outShapes [][]int64) *ServeRa
 	opts.GetHandler = s.getHandler
 
 	meta := &NativeMetadataResponse{}
-	meta.Name = "SimpleGraphpipeServer"
+	meta.Name = "SimpleModel"
 	meta.Description = "A graphpipe server using the simple interface with automatic native type conversion."
 
 	for i := 0; i < len(inputTensors); i++ {
