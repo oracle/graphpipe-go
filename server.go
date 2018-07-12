@@ -94,6 +94,8 @@ func Serve(listen string, cache bool, apply interface{}, inShapes, outShapes [][
 	return ServeRaw(opts)
 }
 
+type GetHandlerFunc func(http.ResponseWriter, *http.Request, []byte) error
+
 type ServeRawOptions struct {
 	Listen         string
 	CacheFile      string
@@ -101,6 +103,7 @@ type ServeRawOptions struct {
 	DefaultInputs  []string
 	DefaultOutputs []string
 	Apply          Applier
+	GetHandler     GetHandlerFunc
 }
 
 // ServeRaw starts the model server. The listen address and port can be specified
@@ -111,6 +114,7 @@ func ServeRaw(opts *ServeRawOptions) error {
 	c := &appContext{
 		meta:           opts.Meta,
 		apply:          opts.Apply,
+		getHandler:     opts.GetHandler,
 		defaultInputs:  opts.DefaultInputs,
 		defaultOutputs: opts.DefaultOutputs,
 		isReady:        1,
@@ -139,6 +143,7 @@ func ServeRaw(opts *ServeRawOptions) error {
 type appContext struct {
 	meta           *NativeMetadataResponse
 	apply          Applier
+	getHandler     GetHandlerFunc
 	defaultInputs  []string
 	defaultOutputs []string
 	cacheFile      string
@@ -195,6 +200,15 @@ func Handler(c *appContext, w http.ResponseWriter, r *http.Request) error {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return err
+	}
+
+	if r.Method == "GET" {
+		if c.getHandler != nil {
+			return c.getHandler(w, r, body)
+		} else {
+			http.Error(w, "Unhandled GET", http.StatusInternalServerError)
+			return nil
+		}
 	}
 
 	request := graphpipefb.GetRootAsRequest(body, 0)
