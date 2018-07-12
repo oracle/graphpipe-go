@@ -17,7 +17,7 @@ endif
 
 sha = $(shell git rev-parse --short HEAD | tr -d ' \n')
 ifeq ($(VERSION),)
-VERSION = $(shell git describe --tags --match 'v*.*.*' | tr -d 'v \n')
+VERSION = $(shell git describe --tags --match 'v*.*.*' 2> /dev/null  | tr -d 'v \n')
 realv = $(shell echo $(VERSION) | cut -d- -f1)
 ifneq ($(VERSION),$(realv))
 commits = $(shell echo $(VERSION) | cut -d- -f2)
