@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -122,6 +123,7 @@ type tfContext struct {
 
 	model *tf.SavedModel
 
+	meta           *graphpipe.NativeMetadataResponse
 	outputs        map[string]tf.Output
 	names          []string
 	types          []byte
@@ -171,8 +173,10 @@ func initializeMetadata(c *tfContext) *graphpipe.NativeMetadataResponse {
 		}
 	}
 	meta := &graphpipe.NativeMetadataResponse{}
-	meta.Name = "tureen-tensorflow"
-	meta.Description = "tureen-tensorflow server"
+	meta.Name = "graphpipe tensorflow model server"
+	meta.Description = "Implementation of tensorflow model server using graphpipe.  Use a graphpipe client to make requests to this server."
+	meta.Server = "graphpipe-tf"
+	meta.Version = version()
 
 	for i := range c.names {
 		// don't allow unknown types to be used for input and output metadata
@@ -283,7 +287,7 @@ func serve(opts options) error {
 		cachePath = filepath.Join(opts.stateDir, fmt.Sprintf("%x.db", c.modelHash))
 	}
 
-	meta := initializeMetadata(c)
+	c.meta = initializeMetadata(c)
 
 	first := c.graphDef.Node[0].Name + ":0"
 	last := c.graphDef.Node[len(c.graphDef.Node)-1].Name + ":0"
@@ -311,10 +315,11 @@ func serve(opts options) error {
 	serveOpts := &graphpipe.ServeRawOptions{
 		Listen:         opts.listen,
 		CacheFile:      cachePath,
-		Meta:           meta,
+		Meta:           c.meta,
 		DefaultInputs:  dIn,
 		DefaultOutputs: dOut,
 		Apply:          c.apply,
+		GetHandler:     c.getHandler,
 	}
 
 	if err := graphpipe.ServeRaw(serveOpts); err != nil {
@@ -473,4 +478,14 @@ func (tfc *tfContext) apply(requestContext *graphpipe.RequestContext, config str
 		outputTps[outputIndexes[i]] = nt
 	}
 	return outputTps, nil
+}
+
+func (tfc *tfContext) getHandler(w http.ResponseWriter, r *http.Request, body []byte) error {
+	js, err := json.MarshalIndent(tfc.meta, "", "    ")
+	if err == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(js)
+	}
+	return err
 }
