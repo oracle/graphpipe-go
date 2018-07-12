@@ -3,6 +3,7 @@ package graphpipe
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"reflect"
 	"runtime/debug"
 	"strconv"
@@ -25,6 +26,17 @@ type simpleContext struct {
 	numOutputs int
 	shapes     map[string]*graphpipefb.Tensor
 	wrapped    interface{}
+	rawOpts    *ServeRawOptions
+}
+
+func (c *simpleContext) getHandler(w http.ResponseWriter, r *http.Request, body []byte) error {
+	js, err := json.MarshalIndent(c.rawOpts.Meta, "", "    ")
+	if err == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(js)
+	}
+	return err
 }
 
 func BuildSimpleApply(apply interface{}, inShapes, outShapes [][]int64) *ServeRawOptions {
@@ -59,10 +71,11 @@ func BuildSimpleApply(apply interface{}, inShapes, outShapes [][]int64) *ServeRa
 		opts.DefaultOutputs = append(opts.DefaultOutputs, name)
 	}
 	opts.Apply = s.apply
+	opts.GetHandler = s.getHandler
 
 	meta := &NativeMetadataResponse{}
-	meta.Name = "Simple"
-	meta.Description = "Simple Description"
+	meta.Name = "SimpleGraphpipeServer"
+	meta.Description = "A graphpipe server using the simple interface with automatic native type conversion."
 
 	for i := 0; i < len(inputTensors); i++ {
 		name := "input" + strconv.Itoa(i)
@@ -84,6 +97,7 @@ func BuildSimpleApply(apply interface{}, inShapes, outShapes [][]int64) *ServeRa
 		meta.Outputs = append(meta.Outputs, io)
 	}
 	opts.Meta = meta
+	s.rawOpts = opts
 	return opts
 }
 
