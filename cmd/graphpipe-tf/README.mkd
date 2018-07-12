@@ -57,7 +57,7 @@ Flags:
   -h, --help             help for graphpipe-tf
   -i, --inputs string    comma seprated default inputs
   -l, --listen string    listen string (default "127.0.0.1:9000")
-  -m, --model string     model to load
+  -m, --model string     tensorflow model to load (accepts local files and unauthenticated http/https urls)
   -o, --outputs string   comma separated default outputs
   -v, --verbose          verbose output
   -V, --version          show version
