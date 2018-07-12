@@ -445,10 +445,10 @@ func getResultsCached(c *appContext, requestContext *RequestContext, req *graphp
 	numApply := len(applyIndexes)
 	logrus.Debugf("%d rows must be calculated", numMissing)
 
-	if numApply == 0 {
-		logrus.Infof("Skipping apply because no outputs requested")
-	} else if numMissing == 0 {
+	if numMissing == 0 {
 		logrus.Infof("Skipping apply because everything is cached")
+	} else if numApply == 0 {
+		logrus.Infof("Skipping apply because no outputs requested")
 	} else {
 		applyInputs := map[string]*NativeTensor{}
 		for i := 0; i < len(inputs); i++ {
