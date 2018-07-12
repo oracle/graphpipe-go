@@ -40,7 +40,7 @@ func version() string {
 type options struct {
 	verbose  bool
 	version  bool
-	nocache  bool
+	cache    bool
 	stateDir string
 	listen   string
 	model    string
@@ -74,7 +74,7 @@ func main() {
 				return
 			}
 			if opts.model == "" {
-				logrus.Errorf("--model or env(\"MODEL\") must be set")
+				logrus.Errorf("--model or env(\"GP_MODEL\") must be set")
 				cmdExitCode = 1
 				return
 			}
@@ -88,29 +88,29 @@ func main() {
 		},
 	}
 	f := cmd.Flags()
-	f.StringVarP(&opts.stateDir, "dir", "d", "~/.graphpipe-tf", "dir for local state")
+	f.StringVarP(&opts.stateDir, "dir", "d", "~/.graphpipe-tf", "dir for local cache state")
 	f.StringVarP(&opts.listen, "listen", "l", "127.0.0.1:9000", "listen string")
-	f.StringVarP(&opts.model, "model", "m", "", "model to load")
+	f.StringVarP(&opts.model, "model", "m", "", "tensorflow model to load")
 	f.StringVarP(&opts.inputs, "inputs", "i", "", "comma seprated default inputs")
 	f.StringVarP(&opts.outputs, "outputs", "o", "", "comma separated default outputs")
-	f.BoolVarP(&opts.nocache, "nocache", "n", false, "do not cache results")
+	f.BoolVarP(&opts.cache, "cache", "c", false, "cache results")
 	f = cmd.PersistentFlags()
 	f.BoolVarP(&opts.verbose, "verbose", "v", false, "verbose output")
 	f.BoolVarP(&opts.version, "version", "V", false, "show version")
 
 	opts.stateDir = strings.Replace(opts.stateDir, "~", os.Getenv("HOME"), -1)
 	if opts.model == "" {
-		opts.model = os.Getenv("MODEL")
+		opts.model = os.Getenv("GP_MODEL")
 	}
 	opts.model = strings.Replace(opts.model, "~", os.Getenv("HOME"), -1)
 	if opts.outputs == "" {
-		opts.outputs = os.Getenv("OUTPUTS")
+		opts.outputs = os.Getenv("GP_OUTPUTS")
 	}
 	if opts.inputs == "" {
-		opts.inputs = os.Getenv("INPUTS")
+		opts.inputs = os.Getenv("GP_INPUTS")
 	}
-	if os.Getenv("NOCACHE") != "" {
-		opts.nocache = true
+	if os.Getenv("GP_CACHE") != "" {
+		opts.cache = true
 	}
 
 	cmd.Execute()
@@ -254,6 +254,16 @@ func readModel(uri string) ([]byte, error) {
 	return ioutil.ReadFile(uri)
 }
 
+func graphContainsNode(g tfproto.GraphDef, name string) bool {
+	name = strings.Split(name, ":")[0]
+	for _, n := range g.Node {
+		if n.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 func serve(opts options) error {
 	if err := os.MkdirAll(opts.stateDir, 0700); err != nil {
 		logrus.Errorf("Could not make state dir '%s': %v", opts.stateDir, err)
@@ -275,7 +285,7 @@ func serve(opts options) error {
 		return err
 	}
 
-	// reserialize the graph with stabal marshal so the hash is the same
+	// reserialize the graph with stable marshal so the hash is the same
 	buf, _ := c.graphDef.Marshal()
 	h := sha256.New()
 	h.Write(buf)
@@ -283,7 +293,7 @@ func serve(opts options) error {
 	logrus.Infof("Model hash is '%x'", c.modelHash)
 
 	cachePath := ""
-	if !opts.nocache {
+	if opts.cache {
 		cachePath = filepath.Join(opts.stateDir, fmt.Sprintf("%x.db", c.modelHash))
 	}
 
@@ -311,6 +321,29 @@ func serve(opts options) error {
 			dOut[i] += ":0"
 		}
 	}
+
+	badIO := false
+
+	for _, inp := range dIn {
+		if !graphContainsNode(c.graphDef, inp) {
+			logrus.Errorf("Couldn't find input in graph: %s", inp)
+			badIO = true
+		}
+	}
+
+	for _, outp := range dOut {
+		if !graphContainsNode(c.graphDef, outp) {
+			logrus.Errorf("Couldn't find output in graph: %s", outp)
+			badIO = true
+		}
+	}
+
+	if badIO {
+		return fmt.Errorf("Could not find some inputs and/or outputs.  Aborting.")
+	}
+
+	logrus.Infof("Using default inputs %s", dIn)
+	logrus.Infof("Using default outputs %s", dOut)
 
 	serveOpts := &graphpipe.ServeRawOptions{
 		Listen:         opts.listen,
@@ -396,7 +429,7 @@ func getOutputRequests(c *tfContext, outputNames []string) ([]tf.Output, error) 
 	return outputRequests, nil
 }
 
-var conv2tf = []tf.DataType{
+var gptype2tftype = []tf.DataType{
 	tf.DataType(tfproto.DataType_DT_INVALID), // Type_Null = 0,
 	tf.DataType(tfproto.DataType_DT_UINT8),   // Type_Uint8 = 1,
 	tf.DataType(tfproto.DataType_DT_INT8),    // Type_Int8 = 2,
@@ -416,7 +449,7 @@ func tensorFromNT(nt *graphpipe.NativeTensor) (*tf.Tensor, error) {
 	if nt.Type == graphpipefb.TypeString {
 		return tf.NewTensor(nt.StringVals)
 	} else {
-		dtype := conv2tf[nt.Type]
+		dtype := gptype2tftype[nt.Type]
 		return tf.ReadTensor(dtype, nt.Shape, bytes.NewReader(nt.Data))
 	}
 }

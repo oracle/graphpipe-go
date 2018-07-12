@@ -24,7 +24,8 @@ to do so (see Prereqs above).
 
 For the GPU build the same more or less applies but you need to have
 all the Nvidia CUDA stuff installed and supported on your system (or
-just have it supported, and have nvidia-docker).
+just have it supported, and have nvidia-docker).  We have tested against
+CUDA 8 and CUDA 9.
 
 ```
   export TF_TYPE=gpu
@@ -34,6 +35,47 @@ just have it supported, and have nvidia-docker).
 
   make in-docker  # just do it all in docker
 ```
+
+## Running the server
+Before running the server, you first need a tensorflow model to serve.
+The model should be in protobuf (.pb) format, or in the tensorflow-serving
+directory format.  We provide a tool to easily convert keras to the correct
+model format [here](https://github.com/oracle/graphpipe-tf-py/blob/master/examples/convert.py).
+
+To see the server's command line options:
+
+```
+./graphpipe-tf --help
+graphpipe-tf - serving up ml models
+
+Usage:
+  graphpipe-tf [flags]
+
+Flags:
+  -n, --cache            do not cache results
+  -d, --dir string       dir for local state (default "~/.graphpipe-tf")
+  -h, --help             help for graphpipe-tf
+  -i, --inputs string    comma seprated default inputs
+  -l, --listen string    listen string (default "127.0.0.1:9000")
+  -m, --model string     model to load
+  -o, --outputs string   comma separated default outputs
+  -v, --verbose          verbose output
+  -V, --version          show version
+```
+
+The only required parameter is --model (see above).  If not specified, inputs and outputs
+will be automatically determined by the graphdef as the first input and last output; if your
+model has multiple inputs and/or outputs, you must specify these parameters manually.
+
+Once you have your model, start the server .
+
+```
+./graphpipe-tf --model=mymodel.pb
+```
+
+## Environment Variables
+For convenience, the key parameters of the service can be configured with environment variables,
+ GP_MODEL, GP_INPUTS, GP_OUTPUTS, and GP_CACHE.
 
 ## Building Containers
 
