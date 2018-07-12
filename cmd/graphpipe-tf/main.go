@@ -110,7 +110,10 @@ func main() {
 		opts.inputs = os.Getenv("GP_INPUTS")
 	}
 	if os.Getenv("GP_CACHE") != "" {
-		opts.cache = true
+		val := strings.ToLower(os.Getenv("GP_CACHE"))
+		if val == "1" || val == "true" {
+			opts.cache = true
+		}
 	}
 
 	cmd.Execute()
