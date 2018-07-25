@@ -16,13 +16,14 @@ build:
         code: |
           export USE_SUDO=0
           export TF_TYPE=cpu
-          cd cmd/graphpipe-tf && make install-tensorflow deps
+          (cd cmd/graphpipe-tf && make install-tensorflow deps)
+          # (cd cmd/graphpipe-onnx && make deps)
 
-    # TODO(termie): currently includes the cmd directory, which needs
-    #               a bunch of other deps, so skipping for now
     - script:
         name: go vet
         code: |
+          # onnx is incomplete, skip it for now
+          rm -rf cmd/graphpipe-onnx
           if (govendor vet +local 2>&1 | grep -ve vendor | grep -ve "Error: exit status"); then
             false
           fi
@@ -36,6 +37,7 @@ build:
         code: |
           go test .
           go test ./cmd/graphpipe-tf
+          # go test ./cmd/graphpipe-onnx
 
     - script:
         name: compile linux_amd64
@@ -45,6 +47,11 @@ build:
     - script:
         name: build graphpipe-tf
         code: cd cmd/graphpipe-tf && make graphpipe-tf
+
+    # TODO(termie): onnx isn't done yet
+    # - script:
+    #     name: build graphpipe-onnx
+    #     code: cd cmd/graphpipe-onnx && make graphpipe-onnx
 
     # generate SHA's for all binaries
     # - script:
