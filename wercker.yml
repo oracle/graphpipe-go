@@ -1,0 +1,39 @@
+box: golang:1.10
+no-response-timeout: 15
+
+build:
+  base-path: /go/src/github.com/oracle/graphpipe-go
+  steps:
+    - script:
+        name: install base dependencies
+        code: make install-govendor deps
+
+    # TODO(termie): currently includes the cmd directory, which needs
+    #               a bunch of other deps, so skipping for now
+    # - script:
+    #     name: go vet
+    #     code: govendor vet +local
+
+    - golint:
+        exclude: vendor|graphpipefb
+
+    - script:
+        name: go test
+        code: go test
+
+    - script:
+        name: compile linux_amd64
+        code: |
+            GOOS=linux GOARCH=amd64 go build
+
+    # generate SHA's for all binaries
+    # - script:
+    #     name: generate SHAs
+    #     code: |
+    #         cd $WERCKER_OUTPUT_DIR
+    #         for f in $(find . -type f -name graphpipe-tf); do
+    #         cd $WERCKER_OUTPUT_DIR/$(dirname "$f")
+    #         sha256sum graphpipe-tf > SHA256SUMS
+    #         echo "$f: $(cat SHA256SUMS | awk '{print $1}')"
+    #         done
+    #         cd $WERCKER_OUTPUT_DIR

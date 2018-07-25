@@ -8,6 +8,7 @@ import (
 	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
 )
 
+// NativeTensor is an easier to use version of the flatbuffer Tensor.
 type NativeTensor struct {
 	Type       uint8
 	Shape      []int64
@@ -15,6 +16,8 @@ type NativeTensor struct {
 	Data       []byte
 }
 
+// InitSimple tries to infer your data shape from the value you
+// give it.
 func (nt *NativeTensor) InitSimple(val interface{}) error {
 	v := reflect.ValueOf(val)
 	shape, num, size, dt, err := ShapeType(v)
@@ -31,6 +34,8 @@ func (nt *NativeTensor) InitSimple(val interface{}) error {
 	return err
 }
 
+// InitWithData is a more explicit initialization and expects
+// the data to already be in the correct format.
 func (nt *NativeTensor) InitWithData(data []byte, shape []int64, dt uint8) error {
 	totalBytes := 1
 	meta := types[dt]
@@ -47,6 +52,8 @@ func (nt *NativeTensor) InitWithData(data []byte, shape []int64, dt uint8) error
 	return nil
 }
 
+// InitWithStringVals is a more explicit initialization and expects
+// the data to already be in the correct format (for stringvals).
 func (nt *NativeTensor) InitWithStringVals(stringVals []string, shape []int64) error {
 	totalItems := 1
 	for _, v := range shape {
@@ -61,10 +68,11 @@ func (nt *NativeTensor) InitWithStringVals(stringVals []string, shape []int64) e
 	return nil
 }
 
+// Build creates the actual flatbuffer representation.
 func (nt *NativeTensor) Build(b *fb.Builder) fb.UOffsetT {
 	if nt.Type == graphpipefb.TypeString {
 		return BuildStringTensorRaw(b, nt.StringVals, nt.Shape)
-	} else {
-		return BuildDataTensorRaw(b, nt.Data, nt.Shape, nt.Type)
 	}
+
+	return BuildDataTensorRaw(b, nt.Data, nt.Shape, nt.Type)
 }

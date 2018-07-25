@@ -19,6 +19,7 @@ const (
 	twoGigs         = 2 * 1024 * 1024 * 1024
 )
 
+// Nt is a NativeTensor holding struct.
 type Nt struct {
 	tensor    *NativeTensor
 	name      []byte
@@ -68,10 +69,9 @@ func (t *Nt) data(index int) []byte {
 			strs[i] = []byte(t.tensor.StringVals[i])
 		}
 		return encodeStrs(strs)
-	} else {
-		rval := t.tensor.Data[index*t.dlen : (index+1)*t.dlen]
-		return rval
 	}
+	rval := t.tensor.Data[index*t.dlen : (index+1)*t.dlen]
+	return rval
 }
 
 func (t *Nt) tensorFromIndexes(indexes []int) *NativeTensor {
