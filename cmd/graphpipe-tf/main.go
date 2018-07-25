@@ -358,10 +358,7 @@ func serve(opts options) error {
 		GetHandler:     c.getHandler,
 	}
 
-	if err := graphpipe.ServeRaw(serveOpts); err != nil {
-		return err
-	}
-	return nil
+	return graphpipe.ServeRaw(serveOpts)
 }
 
 var conv2flat = []byte{
@@ -451,10 +448,9 @@ var gptype2tftype = []tf.DataType{
 func tensorFromNT(nt *graphpipe.NativeTensor) (*tf.Tensor, error) {
 	if nt.Type == graphpipefb.TypeString {
 		return tf.NewTensor(nt.StringVals)
-	} else {
-		dtype := gptype2tftype[nt.Type]
-		return tf.ReadTensor(dtype, nt.Shape, bytes.NewReader(nt.Data))
 	}
+	dtype := gptype2tftype[nt.Type]
+	return tf.ReadTensor(dtype, nt.Shape, bytes.NewReader(nt.Data))
 }
 
 func getInputMap(c *tfContext, inputs map[string]*graphpipe.NativeTensor) (map[tf.Output]*tf.Tensor, error) {
@@ -485,7 +481,7 @@ func (tfc *tfContext) apply(requestContext *graphpipe.RequestContext, config str
 	outputIndexes := []int{}
 	outputTps := make([]*graphpipe.NativeTensor, len(outputNames))
 
-	for i, _ := range outputNames {
+	for i := range outputNames {
 		outputIndexes = append(outputIndexes, i)
 	}
 	keys := make([]string, 0, len(inputs))
