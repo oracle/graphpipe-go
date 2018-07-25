@@ -197,55 +197,46 @@ func toUint8(b []byte) interface{} {
 func toInt8(b []byte) interface{} {
 	ptr := unsafe.Pointer(&b[0])
 	return (*(*[math.MaxUint32]int8)(ptr))[:len(b)]
-	return b
 }
 
 func toUint16(b []byte) interface{} {
 	ptr := unsafe.Pointer(&b[0])
 	return (*(*[math.MaxUint32]uint16)(ptr))[:len(b)/2]
-	return b
 }
 
 func toInt16(b []byte) interface{} {
 	ptr := unsafe.Pointer(&b[0])
 	return (*(*[math.MaxUint32]int16)(ptr))[:len(b)/2]
-	return b
 }
 
 func toUint32(b []byte) interface{} {
 	ptr := unsafe.Pointer(&b[0])
 	return (*(*[math.MaxUint32]uint32)(ptr))[:len(b)/4]
-	return b
 }
 
 func toInt32(b []byte) interface{} {
 	ptr := unsafe.Pointer(&b[0])
 	return (*(*[math.MaxUint32]int32)(ptr))[:len(b)/4]
-	return b
 }
 
 func toUint64(b []byte) interface{} {
 	ptr := unsafe.Pointer(&b[0])
 	return (*(*[math.MaxUint32]uint64)(ptr))[:len(b)/8]
-	return b
 }
 
 func toInt64(b []byte) interface{} {
 	ptr := unsafe.Pointer(&b[0])
 	return (*(*[math.MaxUint32]int64)(ptr))[:len(b)/8]
-	return b
 }
 
 func toFloat32(b []byte) interface{} {
 	ptr := unsafe.Pointer(&b[0])
 	return (*(*[math.MaxUint32]float32)(ptr))[:len(b)/4]
-	return b
 }
 
 func toFloat64(b []byte) interface{} {
 	ptr := unsafe.Pointer(&b[0])
 	return (*(*[math.MaxUint32]float64)(ptr))[:len(b)/8]
-	return b
 }
 
 var types = []struct {

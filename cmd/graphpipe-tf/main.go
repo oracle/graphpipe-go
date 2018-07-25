@@ -358,7 +358,7 @@ func serve(opts options) error {
 		GetHandler:     c.getHandler,
 	}
 
-	return err
+	return graphpipe.ServeRaw(serveOpts)
 }
 
 var conv2flat = []byte{
