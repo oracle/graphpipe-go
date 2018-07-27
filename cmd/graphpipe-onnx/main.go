@@ -11,8 +11,10 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"reflect"
+	"runtime/pprof"
 	"strings"
 	"sync"
 	"time"
@@ -53,6 +55,7 @@ type options struct {
 	valueInputs string
 	initNet     string
 	predictNet  string
+	profile     string
 }
 
 func loadFile(uri string) ([]byte, error) {
@@ -118,11 +121,29 @@ func main() {
 				return
 			}
 
+			if opts.profile != "" {
+				f, err := os.Create(opts.profile)
+				if err != nil {
+					logrus.Fatal(err)
+				}
+				pprof.StartCPUProfile(f)
+				c := make(chan os.Signal, 1)
+				signal.Notify(c, os.Interrupt)
+				go func() {
+					for _ = range c {
+						pprof.StopCPUProfile()
+						os.Exit(0)
+					}
+				}()
+			}
+
 			logrus.Infof("Starting graphpipe-caffe2 %s", version())
 
 			if err := serve(opts); err != nil {
 				logrus.Errorf("Failed to serve: %v", err)
 				cmdExitCode = 1
+			}
+			if opts.profile != "" {
 			}
 		},
 	}
@@ -137,6 +158,7 @@ func main() {
 	f.StringVarP(&opts.valueInputs, "value_inputs", "", "", "inputs")
 	f.BoolVarP(&opts.cache, "cache", "", false, "cache results")
 	f.BoolVarP(&opts.cuda, "cuda", "", false, "Use Cuda")
+	f.StringVarP(&opts.profile, "profile", "", "", "profile and write profiling output to this file")
 
 	opts.stateDir = strings.Replace(opts.stateDir, "~", os.Getenv("HOME"), -1)
 
@@ -164,8 +186,7 @@ func main() {
 }
 
 type c2Context struct {
-	Mutex sync.Mutex
-	//	ExecContexts []trtExecContext
+	Mutex      sync.Mutex
 	CEngineCtx *C.c2_engine_ctx
 	InputDims  map[string][]int64
 	OutputDims map[string][]int64
