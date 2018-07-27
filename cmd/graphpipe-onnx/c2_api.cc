@@ -403,7 +403,7 @@ int _initialize(c2_engine_ctx *ctx) {
 }
 
 int c2_engine_initialize_caffe2(c2_engine_ctx *ctx, char *init_data, size_t init_data_len, char *pred_data, size_t pred_data_len) {
-    std::vector<std::string> strings {"ignore", "--caffe2_omp_num_threads", "8"};
+    std::vector<std::string> strings {"ignore", "--caffe2_mkl_num_threads", "1"};
     std::vector<char*> cstrings;
     for(size_t i = 0; i < strings.size(); ++i) {
         cstrings.push_back(const_cast<char*>(strings[i].c_str()));
@@ -424,7 +424,7 @@ int c2_engine_initialize_caffe2(c2_engine_ctx *ctx, char *init_data, size_t init
 }
 
 int c2_engine_initialize_onnx(c2_engine_ctx *ctx, char *model_data, size_t model_data_len) {
-    std::vector<std::string> strings {"ignore", "--caffe2_omp_num_threads", "8"};
+    std::vector<std::string> strings {"ignore", "--caffe2_mkl_num_threads", "1"};
     std::vector<char*> cstrings;
     for(size_t i = 0; i < strings.size(); ++i) {
         cstrings.push_back(const_cast<char*>(strings[i].c_str()));
