@@ -25,8 +25,8 @@ import (
 	//	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
 )
 
-// #cgo CXXFLAGS: -I /pytorch/build/third_party/onnx/ -I /pytorch/third_party/onnx -I /pytorch/third_party/protobuf/src/  -I /pytorch/ -I /pytorch/build -I /pytorch/build/third_party/gloo -DONNX_NAMESPACE=onnx_c2 -D_GNU_SOURCE -D_REENTRANT -D CAFFE2_FORCE_FALLBACK_CUDA_MPI -D CAFFE2_PERF_WITH_AVX -D CAFFE2_PERF_WITH_AVX2 -D CAFFE2_USE_EIGEN_FOR_BLAS -D CAFFE2_USE_GFLAGS -D CAFFE2_USE_GOOGLE_GLOG -D EIGEN_MPL2_ONLY -D NDEBUG -isystem /usr/local/cuda/include -std=c++11
-// #cgo LDFLAGS: -ldl /pytorch/build/lib/libcaffe2_gpu.so  /pytorch/build/lib/libcaffe2.so  /usr/local/cuda/lib64/libcurand.so -lprotobuf -lglog -lgflags  -L/usr/local/cuda/lib64 -lcudart
+// #cgo CXXFLAGS: -I /pytorch/build/third_party/onnx/ -I /pytorch/third_party/onnx -I /pytorch/third_party/protobuf/src/  -I /pytorch/ -I /pytorch/build -I /pytorch/build/third_party/gloo -DONNX_NAMESPACE=onnx_c2 -D_GNU_SOURCE -D_REENTRANT -D CAFFE2_USE_GFLAGS -D CAFFE2_USE_GOOGLE_GLOG -D NDEBUG -isystem /usr/local/cuda/include -std=c++11 -O2
+// #cgo LDFLAGS: -ldl /pytorch/build/lib/libcaffe2_gpu.so  /pytorch/build/lib/libcaffe2.so  /usr/local/cuda/lib64/libcurand.so -lprotobuf -lglog -lgflags  -L/usr/local/cuda/lib64 -lcudart -O2
 // #include <stdlib.h>
 // #include <c2_api.h>
 import "C"
