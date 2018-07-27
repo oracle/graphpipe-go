@@ -186,14 +186,14 @@ func main() {
 }
 
 type c2Context struct {
-	Mutex      sync.Mutex
-	CEngineCtx *C.c2_engine_ctx
-	InputDims  map[string][]int64
-	OutputDims map[string][]int64
-	Inputs     []string
-	Outputs    []string
-	modelHash  []byte
-	meta       *graphpipe.NativeMetadataResponse
+	Mutex       sync.Mutex
+	CEngineCtxs []*C.c2_engine_ctx
+	InputDims   map[string][]int64
+	OutputDims  map[string][]int64
+	Inputs      []string
+	Outputs     []string
+	modelHash   []byte
+	meta        *graphpipe.NativeMetadataResponse
 }
 
 func readModel(uri string) ([]byte, error) {
@@ -220,12 +220,18 @@ func readModel(uri string) ([]byte, error) {
 }
 
 func serve(opts options) error {
-	var engine_ctx *C.c2_engine_ctx
+	c2c := &c2Context{}
+
 	useCuda := 0
 	if opts.cuda {
 		useCuda = 1
 	}
-	engine_ctx = C.c2_engine_create(C.int(useCuda))
+
+	engineCount := 2
+	for i := 0; i < engineCount; i++ {
+		engine_ctx := C.c2_engine_create(C.int(useCuda))
+		c2c.CEngineCtxs = append(c2c.CEngineCtxs, engine_ctx)
+	}
 
 	valueInputData := make(map[string]interface{})
 
@@ -243,7 +249,9 @@ func serve(opts options) error {
 				d := int64(shape.Index(i).Interface().(float64))
 				dims = append(dims, d)
 			}
-			C.c2_engine_register_input(engine_ctx, C.CString(k), (*C.int64_t)(&dims[0]), (C.int(len(dims))), C.int(dtype))
+			for _, engine_ctx := range c2c.CEngineCtxs {
+				C.c2_engine_register_input(engine_ctx, C.CString(k), (*C.int64_t)(&dims[0]), (C.int(len(dims))), C.int(dtype))
+			}
 		}
 	}
 
@@ -252,7 +260,6 @@ func serve(opts options) error {
 	for i, s := range os.Args {
 		tmp[i] = C.CString(s)
 	}
-	c2c := &c2Context{CEngineCtx: engine_ctx}
 
 	if opts.model != "" {
 		modelData, err := readModel(opts.model)
@@ -261,9 +268,11 @@ func serve(opts options) error {
 			return err
 		}
 
-		status := C.c2_engine_initialize_onnx(engine_ctx, (*C.char)(unsafe.Pointer((&modelData[0]))), C.size_t(len(modelData)))
-		if status != 0 {
-			logrus.Fatalf("Could not initialize engine\n")
+		for _, engine_ctx := range c2c.CEngineCtxs {
+			status := C.c2_engine_initialize_onnx(engine_ctx, (*C.char)(unsafe.Pointer((&modelData[0]))), C.size_t(len(modelData)))
+			if status != 0 {
+				logrus.Fatalf("Could not initialize engine\n")
+			}
 		}
 
 		h := sha256.New()
@@ -283,9 +292,11 @@ func serve(opts options) error {
 			return err
 		}
 
-		status := C.c2_engine_initialize_caffe2(engine_ctx, (*C.char)(unsafe.Pointer((&initData[0]))), C.size_t(len(initData)), (*C.char)(unsafe.Pointer((&predData[0]))), C.size_t(len(predData)))
-		if status != 0 {
-			logrus.Fatalf("Could not initialize engine\n")
+		for _, engine_ctx := range c2c.CEngineCtxs {
+			status := C.c2_engine_initialize_caffe2(engine_ctx, (*C.char)(unsafe.Pointer((&initData[0]))), C.size_t(len(initData)), (*C.char)(unsafe.Pointer((&predData[0]))), C.size_t(len(predData)))
+			if status != 0 {
+				logrus.Fatalf("Could not initialize engine\n")
+			}
 		}
 
 		h := sha256.New()
@@ -295,28 +306,28 @@ func serve(opts options) error {
 		logrus.Infof("Model hash is '%x'", c2c.modelHash)
 	}
 
-	inputCount := C.c2_engine_get_input_count(engine_ctx)
+	inputCount := C.c2_engine_get_input_count(c2c.CEngineCtxs[0])
 	c2c.Inputs = make([]string, inputCount)
 	c2c.InputDims = make(map[string][]int64)
 	c2c.OutputDims = make(map[string][]int64)
 	for i := 0; i < int(inputCount); i++ {
-		cname := C.c2_engine_get_input_name(engine_ctx, C.int(i))
+		cname := C.c2_engine_get_input_name(c2c.CEngineCtxs[0], C.int(i))
 		name := C.GoString(cname)
 		c2c.Inputs[i] = name
 		dims := make([]int64, 32)
-		count := C.c2_engine_get_dimensions(engine_ctx, cname, (*C.int64_t)(unsafe.Pointer(&dims[0])))
+		count := C.c2_engine_get_dimensions(c2c.CEngineCtxs[0], cname, (*C.int64_t)(unsafe.Pointer(&dims[0])))
 		c2c.InputDims[name] = dims[:count]
 
 	}
 
-	outputCount := C.c2_engine_get_output_count(engine_ctx)
+	outputCount := C.c2_engine_get_output_count(c2c.CEngineCtxs[0])
 	c2c.Outputs = make([]string, outputCount)
 	for i := 0; i < int(outputCount); i++ {
-		cname := C.c2_engine_get_output_name(engine_ctx, C.int(i))
+		cname := C.c2_engine_get_output_name(c2c.CEngineCtxs[0], C.int(i))
 		name := C.GoString(cname)
 		c2c.Outputs[i] = name
 		dims := make([]int64, 32)
-		count := C.c2_engine_get_dimensions(engine_ctx, cname, (*C.int64_t)(unsafe.Pointer(&dims[0])))
+		count := C.c2_engine_get_dimensions(c2c.CEngineCtxs[0], cname, (*C.int64_t)(unsafe.Pointer(&dims[0])))
 		c2c.OutputDims[name] = dims[:count]
 		logrus.Println(name + " output")
 		logrus.Println(dims[:count])
@@ -378,36 +389,50 @@ var gptype2ctype = []int{
 
 func (c2c *c2Context) apply(requestContext *graphpipe.RequestContext, config string, inputs map[string]*graphpipe.NativeTensor, outputNames []string) ([]*graphpipe.NativeTensor, error) {
 
-	c2c.Mutex.Lock()
-	defer c2c.Mutex.Unlock()
+	var engine_ctx *C.c2_engine_ctx
+	for {
+		c2c.Mutex.Lock()
+		if len(c2c.CEngineCtxs) > 0 {
+			engine_ctx = c2c.CEngineCtxs[0]
+			c2c.CEngineCtxs = c2c.CEngineCtxs[1:]
+			c2c.Mutex.Unlock()
+			break
+		}
+		c2c.Mutex.Unlock()
+		time.Sleep(time.Second / 200)
+	}
+
+	requestContext.CleanupFunc = func() {
+		c2c.Mutex.Lock()
+		c2c.CEngineCtxs = append(c2c.CEngineCtxs, engine_ctx)
+		c2c.Mutex.Unlock()
+	}
 
 	outputNts := make([]*graphpipe.NativeTensor, len(outputNames))
 	for name, input := range inputs {
-		//logrus.Println(input.Shape)
-		//logrus.Println(input.Type)
 
 		cname := C.CString(name)
 		defer C.free(unsafe.Pointer(cname))
 
-		if gptype2ctype[input.Type] != int(C.c2_engine_get_dtype(c2c.CEngineCtx, cname)) {
-			logrus.Errorf("Input type mismatch.  Got %d expected %d", gptype2ctype[input.Type], C.c2_engine_get_dtype(c2c.CEngineCtx, cname))
+		if gptype2ctype[input.Type] != int(C.c2_engine_get_dtype(engine_ctx, cname)) {
+			logrus.Errorf("Input type mismatch.  Got %d expected %d", gptype2ctype[input.Type], C.c2_engine_get_dtype(engine_ctx, cname))
 			return nil, nil
 		}
 
 		size := len(input.Data)
-		C.c2_set_input_batch(c2c.CEngineCtx, cname, unsafe.Pointer(&input.Data[0]), C.int(size))
+		C.c2_set_input_batch(engine_ctx, cname, unsafe.Pointer(&input.Data[0]), C.int(size))
 	}
 
-	C.c2_execute_batch(c2c.CEngineCtx)
+	C.c2_execute_batch(engine_ctx)
 	for i, name := range outputNames {
 		cname := C.CString(name)
 		defer C.free(unsafe.Pointer(cname))
-		idx := C.c2_engine_get_output_index(c2c.CEngineCtx, cname)
-		size := C.c2_engine_get_output_size(c2c.CEngineCtx, idx)
-		itemsize := int64(C.c2_engine_get_itemsize(c2c.CEngineCtx, cname))
-		dtype := int(C.c2_engine_get_dtype(c2c.CEngineCtx, cname))
+		idx := C.c2_engine_get_output_index(engine_ctx, cname)
+		size := C.c2_engine_get_output_size(engine_ctx, idx)
+		itemsize := int64(C.c2_engine_get_itemsize(engine_ctx, cname))
+		dtype := int(C.c2_engine_get_dtype(engine_ctx, cname))
 		buf := make([]byte, size)
-		actual := C.c2_engine_get_output(c2c.CEngineCtx, idx, unsafe.Pointer(&buf[0]))
+		actual := C.c2_engine_get_output(engine_ctx, idx, unsafe.Pointer(&buf[0]))
 		if actual != size {
 			logrus.Errorf("Returned size mismatch: %s != %s", size, actual)
 			return nil, nil
