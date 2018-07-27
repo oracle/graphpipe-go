@@ -20,8 +20,8 @@ import (
 	"time"
 	"unsafe"
 	//graphpipe "github.com/oracle/graphpipe-go"
-	//	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
 	graphpipe "github.com/oracle/graphpipe-go"
+	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
 	//	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
 )
 
@@ -56,6 +56,7 @@ type options struct {
 	initNet     string
 	predictNet  string
 	profile     string
+	engineCount int
 }
 
 func loadFile(uri string) ([]byte, error) {
@@ -159,6 +160,7 @@ func main() {
 	f.BoolVarP(&opts.cache, "cache", "", false, "cache results")
 	f.BoolVarP(&opts.cuda, "cuda", "", false, "Use Cuda")
 	f.StringVarP(&opts.profile, "profile", "", "", "profile and write profiling output to this file")
+	f.IntVarP(&opts.engineCount, "engine_count", "", 1, "Engine Count")
 
 	opts.stateDir = strings.Replace(opts.stateDir, "~", os.Getenv("HOME"), -1)
 
@@ -187,6 +189,7 @@ func main() {
 
 type c2Context struct {
 	Mutex       sync.Mutex
+	EngineCount int
 	CEngineCtxs []*C.c2_engine_ctx
 	InputDims   map[string][]int64
 	OutputDims  map[string][]int64
@@ -227,8 +230,8 @@ func serve(opts options) error {
 		useCuda = 1
 	}
 
-	engineCount := 2
-	for i := 0; i < engineCount; i++ {
+	c2c.EngineCount = opts.engineCount
+	for i := 0; i < c2c.EngineCount; i++ {
 		engine_ctx := C.c2_engine_create(C.int(useCuda))
 		c2c.CEngineCtxs = append(c2c.CEngineCtxs, engine_ctx)
 	}
@@ -310,6 +313,8 @@ func serve(opts options) error {
 	c2c.Inputs = make([]string, inputCount)
 	c2c.InputDims = make(map[string][]int64)
 	c2c.OutputDims = make(map[string][]int64)
+	meta := &graphpipe.NativeMetadataResponse{}
+
 	for i := 0; i < int(inputCount); i++ {
 		cname := C.c2_engine_get_input_name(c2c.CEngineCtxs[0], C.int(i))
 		name := C.GoString(cname)
@@ -317,6 +322,15 @@ func serve(opts options) error {
 		dims := make([]int64, 32)
 		count := C.c2_engine_get_dimensions(c2c.CEngineCtxs[0], cname, (*C.int64_t)(unsafe.Pointer(&dims[0])))
 		c2c.InputDims[name] = dims[:count]
+		dtype := C.c2_engine_get_dtype(c2c.CEngineCtxs[0], cname)
+
+		logrus.Debugf("Adding input '%s'", name)
+
+		io := graphpipe.NativeIOMetadata{}
+		io.Name = name
+		io.Shape = dims[:count]
+		io.Type = ctype2gptype[dtype]
+		meta.Inputs = append(meta.Inputs, io)
 
 	}
 
@@ -329,11 +343,16 @@ func serve(opts options) error {
 		dims := make([]int64, 32)
 		count := C.c2_engine_get_dimensions(c2c.CEngineCtxs[0], cname, (*C.int64_t)(unsafe.Pointer(&dims[0])))
 		c2c.OutputDims[name] = dims[:count]
-		logrus.Println(name + " output")
-		logrus.Println(dims[:count])
+		dtype := C.c2_engine_get_dtype(c2c.CEngineCtxs[0], cname)
+
+		logrus.Debugf("Adding output '%s'", name)
+		io := graphpipe.NativeIOMetadata{}
+		io.Name = name
+		io.Shape = dims[:count]
+		io.Type = ctype2gptype[dtype]
+		meta.Outputs = append(meta.Outputs, io)
 	}
 
-	meta := &graphpipe.NativeMetadataResponse{}
 	meta.Name = opts.model
 	meta.Description = "Implementation of tensorflow model server using graphpipe.  Use a graphpipe client to make requests to this server."
 	meta.Server = "graphpipe-tf"
@@ -387,25 +406,48 @@ var gptype2ctype = []int{
 	C.TensorProto_DataType_STRING,    // Type_String = 12,
 }
 
+var ctype2gptype = []uint8{
+	graphpipefb.TypeNull,    // TensorProto_DataType_UNDEFINED = 0,
+	graphpipefb.TypeFloat32, // TensorProto_DataType_FLOAT = 1,
+	graphpipefb.TypeInt32,   // TensorProto_DataType_INT32 = 2,
+	graphpipefb.TypeInt8,    // TensorProto_DataType_BYTE = 3,
+	graphpipefb.TypeString,  // TensorProto_DataType_STRING = 4,
+	graphpipefb.TypeNull,    // TensorProto_DataType_BOOL = 5,
+	graphpipefb.TypeInt8,    // TensorProto_DataType_UINT8 = 6,
+	graphpipefb.TypeInt8,    // TensorProto_DataType_INT8 = 7,
+	graphpipefb.TypeUint16,  // TensorProto_DataType_UINT16 = 8,
+	graphpipefb.TypeNull,    // TensorProto_DataType_INT16 = 9,
+	graphpipefb.TypeInt64,   // TensorProto_DataType_INT64 = 10,
+	graphpipefb.TypeFloat16, // TensorProto_DataType_FLOAT16 = 12,
+	graphpipefb.TypeFloat64, // TensorProto_DataType_DOUBLE = 13
+}
+
 func (c2c *c2Context) apply(requestContext *graphpipe.RequestContext, config string, inputs map[string]*graphpipe.NativeTensor, outputNames []string) ([]*graphpipe.NativeTensor, error) {
-
 	var engine_ctx *C.c2_engine_ctx
-	for {
+	if c2c.EngineCount == 1 {
 		c2c.Mutex.Lock()
-		if len(c2c.CEngineCtxs) > 0 {
-			engine_ctx = c2c.CEngineCtxs[0]
-			c2c.CEngineCtxs = c2c.CEngineCtxs[1:]
+		engine_ctx = c2c.CEngineCtxs[0]
+		requestContext.CleanupFunc = func() {
 			c2c.Mutex.Unlock()
-			break
 		}
-		c2c.Mutex.Unlock()
-		time.Sleep(time.Second / 200)
-	}
+	} else {
+		for {
+			c2c.Mutex.Lock()
+			if len(c2c.CEngineCtxs) > 0 {
+				engine_ctx = c2c.CEngineCtxs[0]
+				c2c.CEngineCtxs = c2c.CEngineCtxs[1:]
+				c2c.Mutex.Unlock()
+				break
+			}
+			c2c.Mutex.Unlock()
+			time.Sleep(time.Second / 2000)
+		}
 
-	requestContext.CleanupFunc = func() {
-		c2c.Mutex.Lock()
-		c2c.CEngineCtxs = append(c2c.CEngineCtxs, engine_ctx)
-		c2c.Mutex.Unlock()
+		requestContext.CleanupFunc = func() {
+			c2c.Mutex.Lock()
+			c2c.CEngineCtxs = append(c2c.CEngineCtxs, engine_ctx)
+			c2c.Mutex.Unlock()
+		}
 	}
 
 	outputNts := make([]*graphpipe.NativeTensor, len(outputNames))
