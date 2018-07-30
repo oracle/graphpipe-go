@@ -7,11 +7,11 @@
 
 #include "c2_api.h"
 
-struct c2_engine_ctx
-{
-    int use_cuda;
 
+struct c2_engine_ctx {
+    int use_cuda;
     int batch_size;
+
     std::vector<std::string> all_inputs;
     std::map<int, std::string> inputs;
     std::map<int, std::string> outputs;
@@ -19,52 +19,55 @@ struct c2_engine_ctx
 
     caffe2::onnx::Caffe2BackendRep *onnx_backend;
     caffe2::onnx::Caffe2Backend onnx_instance;
+
     std::map<std::string, std::vector<int64_t>> dims;
     std::map<std::string, int64_t> itemsizes;
     std::map<std::string, int64_t> rowsizes;
     std::map<std::string, int64_t> dtypes;
 
     caffe2::NetDef init_net, pred_net;
-
 };
 
 
-int _get_rowsize(c2_engine_ctx *ctx, char *name)
-{
+int _get_rowsize(c2_engine_ctx *ctx, char *name) {
     std::map<std::string, int64_t>::iterator it;
     it = ctx->rowsizes.find(name);
-    assert(it != ctx->rowsizes.end());
+    if(it == ctx->rowsizes.end()) {
+        return -1;
+    }
     return it->second;
 }
 
 
-int _get_itemsize(c2_engine_ctx *ctx, char *name)
-{
+int _get_itemsize(c2_engine_ctx *ctx, char *name) {
     std::map<std::string, int64_t>::iterator it;
     it = ctx->itemsizes.find(name);
-    assert(it != ctx->itemsizes.end());
+    if (it == ctx->itemsizes.end()) {
+        return -1;
+    }
     return it->second;
 }
+
 
 int c2_engine_get_itemsize(c2_engine_ctx *ctx, char *name) {
     return _get_itemsize(ctx, name);
 }
 
-int _get_dtype(c2_engine_ctx *ctx, char *name)
-{
+
+int _get_dtype(c2_engine_ctx *ctx, char *name) {
     std::map<std::string, int64_t>::iterator it;
     it = ctx->dtypes.find(name);
-    assert(it != ctx->itemsizes.end());
+    if (it == ctx->dtypes.end()) {
+      return -1;
+    }
     return it->second;
 }
 
-int _get_dtype(c2_engine_ctx *ctx, std::string name)
-{
-    std::map<std::string, int64_t>::iterator it;
-    it = ctx->dtypes.find(name);
-    assert(it != ctx->itemsizes.end());
-    return it->second;
+
+int _get_dtype(c2_engine_ctx *ctx, std::string name) {
+    return _get_dtype(ctx, (char *)name.c_str());
 }
+
 
 int c2_engine_get_dtype(c2_engine_ctx *ctx, char *name) {
     return _get_dtype(ctx, name);
@@ -82,8 +85,7 @@ void _do_tensor_copy(c2_engine_ctx *ctx, caffe2::Blob *blob, caffe2::TensorCPU &
     }
 }
 
-int c2_set_input_batch(c2_engine_ctx *ctx, char *name, void *input, int byte_count)
-{
+int c2_set_input_batch(c2_engine_ctx *ctx, char *name, void *input, int byte_count) {
     int itemcount = byte_count / _get_itemsize(ctx, name);
     caffe2::Predictor::TensorMap::iterator it;
     auto* blob = ctx->workspace.GetBlob(name);
@@ -104,15 +106,7 @@ int c2_set_input_batch(c2_engine_ctx *ctx, char *name, void *input, int byte_cou
             return -1;
         }
 
-        /*
-        std::cout << byte_count << " the byte_count\n";
-        std::cout << itemcount << " the shape\n";
-        std::cout << rowsize << " the rowsize\n";
-        std::cout << _get_dtype(ctx, name) << " the rowsize\n";
-        */
-
-        switch (_get_dtype(ctx, name))
-        {
+        switch (_get_dtype(ctx, name)) {
 #define COPY_INPUT(t) { t *arr = (t *) input; std::vector<t> batch_data {arr, arr + itemcount}; caffe2::TensorCPU input({(itemcount/rowsize), dims[1], dims[2], dims[3]}, batch_data, NULL); _do_tensor_copy(ctx, blob, input); }
             case caffe2::TensorProto_DataType_FLOAT:
                 COPY_INPUT(float);
@@ -152,32 +146,33 @@ int c2_set_input_batch(c2_engine_ctx *ctx, char *name, void *input, int byte_cou
     return 0;
 }
 
+
 int c2_execute_batch(c2_engine_ctx *ctx) {
     ctx->workspace.RunNet(ctx->pred_net.name());
 }
 
-int c2_engine_get_input_count(c2_engine_ctx * ctx)
-{
+
+int c2_engine_get_input_count(c2_engine_ctx * ctx) {
     return ctx->inputs.size();
 }
 
-const char *c2_engine_get_input_name(c2_engine_ctx * ctx, int i)
-{
+
+const char *c2_engine_get_input_name(c2_engine_ctx * ctx, int i) {
     return ctx->inputs[i].c_str();
 }
 
-int c2_engine_get_output_count(c2_engine_ctx * ctx)
-{
+
+int c2_engine_get_output_count(c2_engine_ctx * ctx) {
     return ctx->outputs.size();
 }
 
-const char *c2_engine_get_output_name(c2_engine_ctx * ctx, int i)
-{
+
+const char *c2_engine_get_output_name(c2_engine_ctx * ctx, int i) {
     return ctx->outputs[i].c_str();
 }
 
-int c2_engine_get_output_size(c2_engine_ctx *ctx, int i)
-{
+
+int c2_engine_get_output_size(c2_engine_ctx *ctx, int i) {
     std::map<int, std::string>::iterator it;
     it = ctx->outputs.find(i);
     assert(it != ctx->outputs.end());
@@ -196,8 +191,8 @@ int c2_engine_get_output_size(c2_engine_ctx *ctx, int i)
     }
 }
 
-int c2_engine_get_output(c2_engine_ctx *ctx, int i, void *output)
-{
+
+int c2_engine_get_output(c2_engine_ctx *ctx, int i, void *output) {
     std::map<int, std::string>::iterator it;
     it = ctx->outputs.find(i);
     assert(it != ctx->outputs.end());
@@ -222,6 +217,7 @@ int c2_engine_get_output(c2_engine_ctx *ctx, int i, void *output)
     return size;
 }
 
+
 int c2_engine_get_output_index(c2_engine_ctx *ctx, char *name) {
     std::map<int, std::string>::iterator it;
     for (it=ctx->outputs.begin();it!=ctx->outputs.end();it++) {
@@ -232,8 +228,8 @@ int c2_engine_get_output_index(c2_engine_ctx *ctx, char *name) {
     return -1;
 }
 
-void c2_engine_register_input(c2_engine_ctx *ctx, char *name, int64_t *shape, int len, int dtype)
-{
+
+void c2_engine_register_input(c2_engine_ctx *ctx, char *name, int64_t *shape, int len, int dtype) {
     std::vector<int64_t> tmp;
 	for (int i=0; i < len; i++) {
         tmp.push_back(shape[i]);
@@ -242,6 +238,7 @@ void c2_engine_register_input(c2_engine_ctx *ctx, char *name, int64_t *shape, in
     ctx->inputs[ctx->inputs.size()] = name;
     ctx->dtypes[name] = dtype;
 }
+
 
 int c2_engine_get_dimensions(c2_engine_ctx *ctx, char *name, int64_t *dimensions) {
     std::map<std::string, std::vector<int64_t>>::iterator it;
@@ -255,16 +252,24 @@ int c2_engine_get_dimensions(c2_engine_ctx *ctx, char *name, int64_t *dimensions
 	return -1;
 }
 
+
 c2_engine_ctx* c2_engine_create(int use_cuda) {
 	c2_engine_ctx *ctx = new c2_engine_ctx();
     ctx->use_cuda = use_cuda;
     return ctx;
 }
 
+
 int _initialize(c2_engine_ctx *ctx) {
     if (ctx->use_cuda) {
         ctx->init_net.mutable_device_option()->set_device_type(caffe2::DeviceType::CUDA);
         ctx->pred_net.mutable_device_option()->set_device_type(caffe2::DeviceType::CUDA);
+        for(int i = 0; i<ctx->pred_net.op_size(); ++i) {
+            ctx->pred_net.mutable_op(i)->mutable_device_option()->set_device_type(caffe2::DeviceType::CUDA);
+        }
+        for(int i = 0; i < ctx->init_net.op_size(); ++i){
+            ctx->init_net.mutable_op(i)->mutable_device_option()->set_device_type(caffe2::DeviceType::CUDA);
+        }
     }
     else {
         ctx->pred_net.mutable_device_option()->set_device_type(caffe2::DeviceType::CPU);
@@ -287,25 +292,7 @@ int _initialize(c2_engine_ctx *ctx) {
     for (int i=0; i<ctx->pred_net.external_input().size(); i++) {
         ctx->all_inputs.push_back(ctx->pred_net.external_input(i));
         auto* blob = ctx->workspace.GetBlob(ctx->pred_net.external_input(i));
-        if (blob) {
-#if FALSE
-            if (ctx->use_cuda) {
-                auto data = caffe2::TensorCPU(blob->Get<caffe2::TensorCUDA>());
-                ctx->dtypes[ctx->pred_net.external_input(i)] = caffe2::TypeMetaToDataType(data.meta());
-            }
-            else {
-                auto &data = blob->Get<caffe2::TensorCPU>();
-                std::cout << data.DebugString() << "\n";
-                std::cout << data.meta().name() << "\n";
-                /*
-                std::cout << data.meta().id() << " ok\n";
-                std::cout << caffe2::gTypeNames << " ok\n";
-                std::cout << caffe2::TypeMetaToDataType(data.meta()) << "\n";
-                */
-                ctx->dtypes[ctx->pred_net.external_input(i)] = caffe2::TypeMetaToDataType(data.meta());
-            }
-#endif
-        } else {
+        if (!blob) {
             ctx->workspace.CreateBlob(ctx->pred_net.external_input(i));
         }
     }
@@ -332,8 +319,7 @@ int _initialize(c2_engine_ctx *ctx) {
         }
         auto *blob = ctx->workspace.GetBlob(it->second);
         int dtype = _get_dtype(ctx, it->second);
-        switch (dtype)
-        {
+        switch (dtype) {
 #define SETUP_INPUT(t) { std::vector<t> test_data(size); caffe2::TensorCPU input({1, dims[1], dims[2], dims[3]}, test_data, NULL); _do_tensor_copy(ctx, blob, input); ctx->itemsizes[it->second] = input.itemsize(); }
             case caffe2::TensorProto_DataType_FLOAT:
                 SETUP_INPUT(float)
@@ -402,8 +388,9 @@ int _initialize(c2_engine_ctx *ctx) {
 	return 0;
 }
 
+
 int c2_engine_initialize_caffe2(c2_engine_ctx *ctx, char *init_data, size_t init_data_len, char *pred_data, size_t pred_data_len) {
-    std::vector<std::string> strings {"ignore", "--caffe2_mkl_num_threads", "1"};
+    std::vector<std::string> strings {"ignore"};
     std::vector<char*> cstrings;
     for(size_t i = 0; i < strings.size(); ++i) {
         cstrings.push_back(const_cast<char*>(strings[i].c_str()));
@@ -411,7 +398,6 @@ int c2_engine_initialize_caffe2(c2_engine_ctx *ctx, char *init_data, size_t init
 
 	int _argc = cstrings.size();
 	char **_argv = &cstrings[0];
-
 
     caffe2::GlobalInit(&_argc, &_argv);
 
@@ -423,8 +409,9 @@ int c2_engine_initialize_caffe2(c2_engine_ctx *ctx, char *init_data, size_t init
     return _initialize(ctx); 
 }
 
+
 int c2_engine_initialize_onnx(c2_engine_ctx *ctx, char *model_data, size_t model_data_len) {
-    std::vector<std::string> strings {"ignore", "--caffe2_mkl_num_threads", "1"};
+    std::vector<std::string> strings {"ignore"};
     std::vector<char*> cstrings;
     for(size_t i = 0; i < strings.size(); ++i) {
         cstrings.push_back(const_cast<char*>(strings[i].c_str()));

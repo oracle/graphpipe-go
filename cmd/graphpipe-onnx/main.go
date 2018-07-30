@@ -366,11 +366,9 @@ func serve(opts options) error {
 	}
 
 	serveOpts := &graphpipe.ServeRawOptions{
-		Listen:    opts.listen,
-		CacheFile: cachePath,
-		Meta:      c2c.meta,
-		//		DefaultInputs:  dIn,
-		//		DefaultOutputs: dOut,
+		Listen:     opts.listen,
+		CacheFile:  cachePath,
+		Meta:       c2c.meta,
 		Apply:      c2c.apply,
 		GetHandler: c2c.getHandler,
 	}
@@ -455,10 +453,19 @@ func (c2c *c2Context) apply(requestContext *graphpipe.RequestContext, config str
 
 		cname := C.CString(name)
 		defer C.free(unsafe.Pointer(cname))
+		dtype := int(C.c2_engine_get_dtype(engine_ctx, cname))
+		if dtype < 0 {
+			return nil, fmt.Errorf("Could not find input: %s", name)
+		}
+		if gptype2ctype[input.Type] != dtype {
+			return nil, fmt.Errorf("Input type mismatch.  Got %d expected %d", gptype2ctype[input.Type], C.c2_engine_get_dtype(engine_ctx, cname))
+		}
 
-		if gptype2ctype[input.Type] != int(C.c2_engine_get_dtype(engine_ctx, cname)) {
-			logrus.Errorf("Input type mismatch.  Got %d expected %d", gptype2ctype[input.Type], C.c2_engine_get_dtype(engine_ctx, cname))
-			return nil, nil
+		dims := c2c.InputDims[name]
+		for i := 1; i < len(dims); i++ {
+			if input.Shape[i] != dims[i] {
+				return nil, fmt.Errorf("Invalid input shape for %s.  Expected %v, got %v", name, dims, input.Shape)
+			}
 		}
 
 		size := len(input.Data)
@@ -469,15 +476,18 @@ func (c2c *c2Context) apply(requestContext *graphpipe.RequestContext, config str
 	for i, name := range outputNames {
 		cname := C.CString(name)
 		defer C.free(unsafe.Pointer(cname))
+
 		idx := C.c2_engine_get_output_index(engine_ctx, cname)
+		if idx < 0 {
+			return nil, fmt.Errorf("Could not find requested output: %s", name)
+		}
 		size := C.c2_engine_get_output_size(engine_ctx, idx)
 		itemsize := int64(C.c2_engine_get_itemsize(engine_ctx, cname))
 		dtype := int(C.c2_engine_get_dtype(engine_ctx, cname))
 		buf := make([]byte, size)
 		actual := C.c2_engine_get_output(engine_ctx, idx, unsafe.Pointer(&buf[0]))
 		if actual != size {
-			logrus.Errorf("Returned size mismatch: %s != %s", size, actual)
-			return nil, nil
+			return nil, fmt.Errorf("Returned size mismatch: %s != %s", size, actual)
 		}
 
 		dims := c2c.OutputDims[name]
@@ -498,14 +508,10 @@ func (c2c *c2Context) apply(requestContext *graphpipe.RequestContext, config str
 		}
 
 		if gptype < 0 {
-			logrus.Errorf("Unhandled type %d", dtype)
-			return nil, nil
+			return nil, fmt.Errorf("Unhandled type %d", dtype)
 		}
 
 		shape[0] = int64(size) / (rowSize * itemsize)
-		logrus.Println(size)
-		logrus.Println(rowSize)
-		logrus.Println(dims)
 
 		nt := &graphpipe.NativeTensor{}
 		nt.InitWithData(buf, shape, uint8(gptype))
