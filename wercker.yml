@@ -1,0 +1,66 @@
+box: golang:1.10
+no-response-timeout: 15
+
+build:
+  base-path: /go/src/github.com/oracle/graphpipe-go
+  steps:
+    - install-packages:
+        packages: curl
+
+    - script:
+        name: install base dependencies
+        code: make install-govendor deps
+
+    - script:
+        name: install graphpipe-tf deps
+        code: |
+          export USE_SUDO=0
+          export TF_TYPE=cpu
+          (cd cmd/graphpipe-tf && make install-tensorflow deps)
+          # (cd cmd/graphpipe-onnx && make deps)
+
+    - script:
+        name: go vet
+        code: |
+          # onnx is incomplete, skip it for now
+          rm -rf cmd/graphpipe-onnx
+          if (govendor vet +local 2>&1 | grep -ve vendor | grep -ve "Error: exit status"); then
+            false
+          fi
+
+    #
+    - golint:
+        exclude: vendor|graphpipefb
+
+    - script:
+        name: go test
+        code: |
+          go test .
+          go test ./cmd/graphpipe-tf
+          # go test ./cmd/graphpipe-onnx
+
+    - script:
+        name: compile linux_amd64
+        code: |
+            GOOS=linux GOARCH=amd64 go build
+
+    - script:
+        name: build graphpipe-tf
+        code: cd cmd/graphpipe-tf && make graphpipe-tf
+
+    # TODO(termie): onnx isn't done yet
+    # - script:
+    #     name: build graphpipe-onnx
+    #     code: cd cmd/graphpipe-onnx && make graphpipe-onnx
+
+    # generate SHA's for all binaries
+    # - script:
+    #     name: generate SHAs
+    #     code: |
+    #         cd $WERCKER_OUTPUT_DIR
+    #         for f in $(find . -type f -name graphpipe-tf); do
+    #         cd $WERCKER_OUTPUT_DIR/$(dirname "$f")
+    #         sha256sum graphpipe-tf > SHA256SUMS
+    #         echo "$f: $(cat SHA256SUMS | awk '{print $1}')"
+    #         done
+    #         cd $WERCKER_OUTPUT_DIR

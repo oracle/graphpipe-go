@@ -17,6 +17,8 @@ func Serialize(b *fb.Builder, obj fb.UOffsetT) []byte {
 	return b.FinishedBytes()
 }
 
+// TensorToNativeTensor is a converter between the flatbuffer Tensor
+// objects and the easier to use NativeTensor objects.
 func TensorToNativeTensor(t *graphpipefb.Tensor) *NativeTensor {
 	shape := make([]int64, t.ShapeLength())
 	for i := 0; i < t.ShapeLength(); i++ {
@@ -35,6 +37,8 @@ func TensorToNativeTensor(t *graphpipefb.Tensor) *NativeTensor {
 	return nt
 }
 
+// NativeTensorToNative is a converter between NativeTensors and raw
+// arrays of arrays (of arrays of arrays) of numbers.
 func NativeTensorToNative(t *NativeTensor) (interface{}, error) {
 	if int(t.Type) > len(types) {
 		return nil, fmt.Errorf("Unknown type: %d", t.Type)
@@ -193,55 +197,46 @@ func toUint8(b []byte) interface{} {
 func toInt8(b []byte) interface{} {
 	ptr := unsafe.Pointer(&b[0])
 	return (*(*[math.MaxUint32]int8)(ptr))[:len(b)]
-	return b
 }
 
 func toUint16(b []byte) interface{} {
 	ptr := unsafe.Pointer(&b[0])
 	return (*(*[math.MaxUint32]uint16)(ptr))[:len(b)/2]
-	return b
 }
 
 func toInt16(b []byte) interface{} {
 	ptr := unsafe.Pointer(&b[0])
 	return (*(*[math.MaxUint32]int16)(ptr))[:len(b)/2]
-	return b
 }
 
 func toUint32(b []byte) interface{} {
 	ptr := unsafe.Pointer(&b[0])
 	return (*(*[math.MaxUint32]uint32)(ptr))[:len(b)/4]
-	return b
 }
 
 func toInt32(b []byte) interface{} {
 	ptr := unsafe.Pointer(&b[0])
 	return (*(*[math.MaxUint32]int32)(ptr))[:len(b)/4]
-	return b
 }
 
 func toUint64(b []byte) interface{} {
 	ptr := unsafe.Pointer(&b[0])
 	return (*(*[math.MaxUint32]uint64)(ptr))[:len(b)/8]
-	return b
 }
 
 func toInt64(b []byte) interface{} {
 	ptr := unsafe.Pointer(&b[0])
 	return (*(*[math.MaxUint32]int64)(ptr))[:len(b)/8]
-	return b
 }
 
 func toFloat32(b []byte) interface{} {
 	ptr := unsafe.Pointer(&b[0])
 	return (*(*[math.MaxUint32]float32)(ptr))[:len(b)/4]
-	return b
 }
 
 func toFloat64(b []byte) interface{} {
 	ptr := unsafe.Pointer(&b[0])
 	return (*(*[math.MaxUint32]float64)(ptr))[:len(b)/8]
-	return b
 }
 
 var types = []struct {
@@ -275,9 +270,8 @@ func sliceData(typ reflect.Type, data reflect.Value, shape []int) reflect.Value 
 			ret.Index(i).Set(sliceData(elem, data.Slice(o, o+size), sub))
 		}
 		return ret
-	} else {
-		return data
 	}
+	return data
 }
 
 // ShapeType returns shape, num, size, and dt for a reflect.Value. The value
@@ -428,9 +422,8 @@ func getDataSafe(val reflect.Value, size int) ([]byte, error) {
 	}
 	if contiguous {
 		return getDataContiguous(val, size)
-	} else {
-		return getDataNonContiguous(val, size)
 	}
+	return getDataNonContiguous(val, size)
 }
 
 type dataGetter func(reflect.Value, int) ([]byte, error)
@@ -445,13 +438,13 @@ func buildTensor(b *fb.Builder, val interface{}, get dataGetter) (fb.UOffsetT, e
 		strs := make([]string, num)
 		extractStrs(v, strs)
 		return BuildStringTensorRaw(b, strs, shape), nil
-	} else {
-		data, err := get(v, int(num*size))
-		if err != nil {
-			return 0, err
-		}
-		return BuildDataTensorRaw(b, data, shape, dt), nil
 	}
+
+	data, err := get(v, int(num*size))
+	if err != nil {
+		return 0, err
+	}
+	return BuildDataTensorRaw(b, data, shape, dt), nil
 }
 
 func buildTensorRaw(b *fb.Builder, dataFb, stringValFb fb.UOffsetT, shape []int64, dt uint8) fb.UOffsetT {

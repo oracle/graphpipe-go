@@ -14,8 +14,11 @@ import (
 	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
 )
 
+// Applier is the base signature for server actions.
 type Applier func(*RequestContext, string, map[string]*NativeTensor, []string) ([]*NativeTensor, error)
 
+// SimpleApplier is the signature for a server action that converts
+// between native types and graphpipe objects.
 type SimpleApplier func(interface{}) (interface{}, error)
 type simpleContext struct {
 	names      *graphpipefb.Tensor
@@ -39,6 +42,7 @@ func (c *simpleContext) getHandler(w http.ResponseWriter, r *http.Request, body 
 	return err
 }
 
+// BuildSimpleApply is the factory for producing SimpleAppliers
 func BuildSimpleApply(apply interface{}, inShapes, outShapes [][]int64) *ServeRawOptions {
 	s := &simpleContext{
 		inShapes:  inShapes,

@@ -25,15 +25,15 @@ func testGetMethodTypeShapes(t *testing.T, method interface{}, expectedTypes []i
 	types, input, output := getMethodTypeShapes(method)
 	checkTypes, _ := TensorToNative(types)
 	if !reflect.DeepEqual(checkTypes, expectedTypes) {
-		t.Fatal("types %v and %v are not equal", checkTypes, expectedTypes)
+		t.Fatalf("types %v and %v are not equal", checkTypes, expectedTypes)
 	}
 	checkInput, _ := TensorToNative(input[0])
 	if !reflect.DeepEqual(checkInput, expectedInput) {
-		t.Fatal("inputs %v and %v are not equal", checkInput, expectedInput)
+		t.Fatalf("inputs %v and %v are not equal", checkInput, expectedInput)
 	}
 	checkOutput, _ := TensorToNative(output[0])
 	if !reflect.DeepEqual(checkOutput, expectedOutput) {
-		t.Fatal("outputs %v and %v are not equal", checkOutput, expectedOutput)
+		t.Fatalf("outputs %v and %v are not equal", checkOutput, expectedOutput)
 	}
 }
 
@@ -63,6 +63,6 @@ func testConvert(t *testing.T, val interface{}) {
 	}
 
 	if !reflect.DeepEqual(val, res) {
-		t.Fatal("values %v and %v are not equal", val, res)
+		t.Fatalf("values %v and %v are not equal", val, res)
 	}
 }

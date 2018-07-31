@@ -5,6 +5,8 @@ import (
 	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
 )
 
+// NativeIOMetadata holds information describing the format of
+// the model being served.
 type NativeIOMetadata struct {
 	Name        string
 	Description string
@@ -12,6 +14,8 @@ type NativeIOMetadata struct {
 	Type        uint8
 }
 
+// NativeMetadataResponse is the response format used by the
+// server.
 type NativeMetadataResponse struct {
 	Name        string
 	Version     string
@@ -21,6 +25,7 @@ type NativeMetadataResponse struct {
 	Outputs     []NativeIOMetadata
 }
 
+// Build does all the heavy lifting of building out flatbuffers.
 func (meta *NativeMetadataResponse) Build(b *fb.Builder) fb.UOffsetT {
 	inputOffsets := make([]fb.UOffsetT, len(meta.Inputs))
 	for i := 0; i < len(meta.Inputs); i++ {

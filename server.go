@@ -17,20 +17,24 @@ import (
 	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
 )
 
+// Error is our wrapper around the error interface.
 type Error interface {
 	error
 	Status() int
 }
 
+// StatusError is our wrapper around an http error interface.
 type StatusError struct {
 	Code int
 	Err  error
 }
 
+// Error returns the error message.
 func (se StatusError) Error() string {
 	return se.Err.Error()
 }
 
+// Status returns an http status code.
 func (se StatusError) Status() int {
 	return se.Code
 }
@@ -44,6 +48,8 @@ func setupLifecycleRoutes(c *appContext) {
 	http.Handle("/control/client_count", appHandler{c, clientCountHandler})
 }
 
+// ListenAndServe is like robocop but for servers (listens on a
+// host:port and handles requests).
 func ListenAndServe(addr string, handler http.Handler) error {
 	server := &http.Server{Addr: addr, Handler: handler}
 	if addr == "" {
@@ -60,6 +66,8 @@ type counterListener struct {
 	*net.TCPListener
 }
 
+// Accept is implementing the TCPListener interface, here to count
+// connections for performance testing purposes.
 func (l *counterListener) Accept() (net.Conn, error) {
 	tc, err := l.AcceptTCP()
 	if err != nil {
@@ -75,6 +83,7 @@ type counterListenerConn struct {
 	net.Conn
 }
 
+// Close closes our connection and decrements our counter.
 func (l *counterListenerConn) Close() error {
 	err := l.Conn.Close()
 	atomic.AddInt64(&clientCount, -1)
@@ -94,8 +103,10 @@ func Serve(listen string, cache bool, apply interface{}, inShapes, outShapes [][
 	return ServeRaw(opts)
 }
 
+// GetHandlerFunc is an indirection to return the handler.
 type GetHandlerFunc func(http.ResponseWriter, *http.Request, []byte) error
 
+// ServeRawOptions is just a call parameter struct.
 type ServeRawOptions struct {
 	Listen         string
 	CacheFile      string
@@ -157,24 +168,29 @@ type appHandler struct {
 	H func(*appContext, http.ResponseWriter, *http.Request) error
 }
 
+// RequestContext attaches our flatbuffers to the request.
 type RequestContext struct {
 	hasDied     int32
 	CleanupFunc func()
 	builder     *fb.Builder
 }
 
+// IsAlive tells you if it isn't dead.
 func (ctx *RequestContext) IsAlive() bool {
 	return ctx.hasDied == 0
 }
 
+// SetDead makes sure it isn't alive.
 func (ctx *RequestContext) SetDead() {
 	atomic.StoreInt32(&ctx.hasDied, 1)
 }
 
+// BuildTensor does the heavy lifting to make sure we have a flatbuffer.
 func (ctx *RequestContext) BuildTensor(val interface{}) (fb.UOffsetT, error) {
 	return BuildTensorSafe(ctx.builder, val)
 }
 
+// ServeHTTP is the handler interface for responding to requests.
 func (ah appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 	err := ah.H(ah.appContext, w, r)
@@ -196,6 +212,7 @@ func (ah appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logrus.Infof("Request for %s took %s", r.URL.Path, duration)
 }
 
+// Handler handles our http requests.
 func Handler(c *appContext, w http.ResponseWriter, r *http.Request) error {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -269,24 +286,22 @@ func Handler(c *appContext, w http.ResponseWriter, r *http.Request) error {
 		io.Copy(w, bytes.NewReader(tmp))
 
 		return nil
-	} else {
-		b := fb.NewBuilder(1024)
-		offset := c.meta.Build(b)
-		tmp := Serialize(b, offset)
-		io.Copy(w, bytes.NewReader(tmp))
-		return nil
 	}
-	return errors.New("Unhandled request type")
+
+	b := fb.NewBuilder(1024)
+	offset := c.meta.Build(b)
+	tmp := Serialize(b, offset)
+	io.Copy(w, bytes.NewReader(tmp))
+	return nil
+	// return errors.New("Unhandled request type")
 }
 
 func isReadyHandler(c *appContext, w http.ResponseWriter, r *http.Request) error {
 	if c.isReady == 1 {
 		fmt.Fprintf(w, "ok\n")
 		return nil
-
-	} else {
-		return StatusError{503, errors.New("not ready")}
 	}
+	return StatusError{503, errors.New("not ready")}
 }
 
 func isAliveHandler(c *appContext, w http.ResponseWriter, r *http.Request) error {

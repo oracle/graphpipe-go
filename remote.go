@@ -11,6 +11,7 @@ import (
 	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
 )
 
+// Remote is the simple interface for making a remote model request.
 func Remote(client *http.Client, uri string, in interface{}, inputName, outputName string) (interface{}, error) {
 	inputNames := []string{}
 	outputNames := []string{}
@@ -24,6 +25,8 @@ func Remote(client *http.Client, uri string, in interface{}, inputName, outputNa
 	return res[0], err
 }
 
+// MultiRemote is the simple interface for making multiple remote
+// model requests.
 func MultiRemote(client *http.Client, uri string, ins []interface{}, inputNames, outputNames []string) ([]interface{}, error) {
 	inputs := make([]*NativeTensor, len(ins))
 	for i := range ins {
@@ -54,6 +57,8 @@ func MultiRemote(client *http.Client, uri string, ins []interface{}, inputNames,
 	return natives, nil
 }
 
+// MultiRemoteRaw is the actual implementation of the remote model
+// request using NativeTensor objects.
 func MultiRemoteRaw(client *http.Client, uri string, inputs []*NativeTensor, inputNames, outputNames []string) ([]*NativeTensor, error) {
 	b := fb.NewBuilder(1024)
 
