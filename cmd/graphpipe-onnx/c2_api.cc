@@ -283,19 +283,25 @@ int _initialize(c2_engine_ctx *ctx) {
     }
 
     CAFFE_ENFORCE(ctx->workspace.RunNetOnce(ctx->init_net));
-    for (int i=0; i<ctx->pred_net.external_output().size(); i++) {
-        ctx->outputs[i] = ctx->pred_net.external_output(i);
-        std::vector<int64_t> tmp;
-        ctx->dims[ctx->pred_net.external_output(i)] = tmp;
-    }
 
     for (int i=0; i<ctx->pred_net.external_input().size(); i++) {
-        ctx->all_inputs.push_back(ctx->pred_net.external_input(i));
-        auto* blob = ctx->workspace.GetBlob(ctx->pred_net.external_input(i));
+        const std::string name = ctx->pred_net.external_input(i);
+        std::cerr << "Found uninitialized input " << name << "\n";
+        ctx->all_inputs.push_back(name);
+        auto* blob = ctx->workspace.GetBlob(name);
         if (!blob) {
-            ctx->workspace.CreateBlob(ctx->pred_net.external_input(i));
+            ctx->workspace.CreateBlob(name);
         }
     }
+
+    for (int i=0; i<ctx->pred_net.external_output().size(); i++) {
+        const std::string name = ctx->pred_net.external_output(i);
+        std::cerr << "Found output " << name << "\n";
+        ctx->outputs[i] = name;
+        std::vector<int64_t> tmp;
+        ctx->dims[name] = tmp;
+    }
+
     CAFFE_ENFORCE(ctx->workspace.CreateNet(ctx->pred_net));
 
 
