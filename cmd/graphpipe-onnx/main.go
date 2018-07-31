@@ -263,6 +263,8 @@ func serve(opts options) error {
 	}
 
 	argv := (C.malloc(C.size_t(len(os.Args)) * C.size_t(unsafe.Sizeof(uintptr(0)))))
+	defer C.free(unsafe.Pointer(argv))
+
 	tmp := (*[1<<30 - 1]*C.char)(argv)
 	for i, s := range os.Args {
 		tmp[i] = C.CString(s)
@@ -358,7 +360,7 @@ func serve(opts options) error {
 	}
 
 	meta.Name = opts.model
-	meta.Description = "Implementation of tensorflow model server using graphpipe.  Use a graphpipe client to make requests to this server."
+	meta.Description = "Implementation of onnx/caffe2 model server using graphpipe.  Use a graphpipe client to make requests to this server."
 	meta.Server = "graphpipe-tf"
 	meta.Version = version()
 
