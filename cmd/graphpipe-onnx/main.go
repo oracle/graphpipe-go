@@ -156,7 +156,7 @@ func main() {
 	f.StringVarP(&opts.model, "model", "m", "", "model to load")
 	f.StringVarP(&opts.initNet, "init_net", "", "", "init_net file to load")
 	f.StringVarP(&opts.predictNet, "predict_net", "", "", "predict_net file to load")
-	f.StringVarP(&opts.valueInputs, "value_inputs", "", "", "inputs")
+	f.StringVarP(&opts.valueInputs, "value_inputs", "", "", "value_inputs.json for the model")
 	f.BoolVarP(&opts.cache, "cache", "", false, "cache results")
 	f.BoolVarP(&opts.cuda, "cuda", "", false, "Use Cuda")
 	f.StringVarP(&opts.profile, "profile", "", "", "profile and write profiling output to this file")
@@ -167,14 +167,14 @@ func main() {
 	if opts.model == "" {
 		opts.model = os.Getenv("GP_MODEL")
 	}
+	if opts.valueInputs == "" {
+		opts.valueInputs = os.Getenv("GP_VALUE_INPUTS")
+	}
 	if opts.initNet == "" {
 		opts.initNet = os.Getenv("GP_INIT_NET")
 	}
 	if opts.predictNet == "" {
 		opts.predictNet = os.Getenv("GP_PREDICT_NET")
-	}
-	if opts.valueInputs == "" {
-		opts.valueInputs = os.Getenv("GP_VALUE_INPUTS")
 	}
 
 	if os.Getenv("GP_CACHE") != "" {
@@ -237,8 +237,12 @@ func serve(opts options) error {
 	}
 
 	valueInputData := make(map[string]interface{})
+	valueInputJson, err := readModel(opts.valueInputs)
+	if err != nil {
+		panic(err)
+	}
 
-	err := json.Unmarshal([]byte(opts.valueInputs), &valueInputData)
+	err = json.Unmarshal([]byte(valueInputJson), &valueInputData)
 	if err != nil {
 		panic(err)
 	}
