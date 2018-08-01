@@ -239,12 +239,12 @@ func serve(opts options) error {
 	valueInputData := make(map[string]interface{})
 	valueInputJson, err := readModel(opts.valueInputs)
 	if err != nil {
-		panic(err)
+		logrus.Fatalf("Could not load value_input: %v", err)
 	}
 
 	err = json.Unmarshal([]byte(valueInputJson), &valueInputData)
 	if err != nil {
-		panic(err)
+		logrus.Fatalf("Could not unmarshall value_input: %v", err)
 	}
 
 	for k, v := range valueInputData {
@@ -260,14 +260,6 @@ func serve(opts options) error {
 				C.c2_engine_register_input(engine_ctx, C.CString(k), (*C.int64_t)(&dims[0]), (C.int(len(dims))), C.int(dtype))
 			}
 		}
-	}
-
-	argv := (C.malloc(C.size_t(len(os.Args)) * C.size_t(unsafe.Sizeof(uintptr(0)))))
-	defer C.free(unsafe.Pointer(argv))
-
-	tmp := (*[1<<30 - 1]*C.char)(argv)
-	for i, s := range os.Args {
-		tmp[i] = C.CString(s)
 	}
 
 	if opts.model != "" {
@@ -326,15 +318,18 @@ func serve(opts options) error {
 		name := C.GoString(cname)
 		c2c.Inputs[i] = name
 		dims := make([]int64, 32)
-		count := C.c2_engine_get_dimensions(c2c.CEngineCtxs[0], cname, (*C.int64_t)(unsafe.Pointer(&dims[0])))
-		c2c.InputDims[name] = dims[:count]
+		dimCount := C.c2_engine_get_dimensions(c2c.CEngineCtxs[0], cname, (*C.int64_t)(unsafe.Pointer(&dims[0])))
+		if dimCount < 0 {
+			logrus.Fatalf("Could not find dimensions for: %s", name)
+		}
+		c2c.InputDims[name] = dims[:dimCount]
 		dtype := C.c2_engine_get_dtype(c2c.CEngineCtxs[0], cname)
 
 		logrus.Debugf("Adding input '%s'", name)
 
 		io := graphpipe.NativeIOMetadata{}
 		io.Name = name
-		io.Shape = dims[:count]
+		io.Shape = dims[:dimCount]
 		io.Type = ctype2gptype[dtype]
 		meta.Inputs = append(meta.Inputs, io)
 
@@ -347,14 +342,17 @@ func serve(opts options) error {
 		name := C.GoString(cname)
 		c2c.Outputs[i] = name
 		dims := make([]int64, 32)
-		count := C.c2_engine_get_dimensions(c2c.CEngineCtxs[0], cname, (*C.int64_t)(unsafe.Pointer(&dims[0])))
-		c2c.OutputDims[name] = dims[:count]
+		dimCount := C.c2_engine_get_dimensions(c2c.CEngineCtxs[0], cname, (*C.int64_t)(unsafe.Pointer(&dims[0])))
+		if dimCount < 0 {
+			logrus.Fatalf("Could not find dimensions for: %s", name)
+		}
+		c2c.OutputDims[name] = dims[:dimCount]
 		dtype := C.c2_engine_get_dtype(c2c.CEngineCtxs[0], cname)
 
 		logrus.Debugf("Adding output '%s'", name)
 		io := graphpipe.NativeIOMetadata{}
 		io.Name = name
-		io.Shape = dims[:count]
+		io.Shape = dims[:dimCount]
 		io.Type = ctype2gptype[dtype]
 		meta.Outputs = append(meta.Outputs, io)
 	}
@@ -488,8 +486,17 @@ func (c2c *c2Context) apply(requestContext *graphpipe.RequestContext, config str
 			return nil, fmt.Errorf("Could not find requested output: %s", name)
 		}
 		size := C.c2_engine_get_output_size(engine_ctx, idx)
+		if size < 0 {
+			return nil, fmt.Errorf("Could not find size for requested output: %s", name)
+		}
 		itemsize := int64(C.c2_engine_get_itemsize(engine_ctx, cname))
+		if itemsize < 0 {
+			return nil, fmt.Errorf("Could not find itemsize for requested output: %s", name)
+		}
 		dtype := int(C.c2_engine_get_dtype(engine_ctx, cname))
+		if dtype < 0 {
+			return nil, fmt.Errorf("Could not find dtype for requested output: %s", name)
+		}
 		buf := make([]byte, size)
 		actual := C.c2_engine_get_output(engine_ctx, idx, unsafe.Pointer(&buf[0]))
 		if actual != size {
@@ -510,6 +517,7 @@ func (c2c *c2Context) apply(requestContext *graphpipe.RequestContext, config str
 		for gp, dt := range gptype2ctype {
 			if dt == dtype {
 				gptype = gp
+				break
 			}
 		}
 

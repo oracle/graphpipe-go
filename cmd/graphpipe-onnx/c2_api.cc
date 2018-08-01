@@ -195,7 +195,10 @@ int c2_engine_get_output_size(c2_engine_ctx *ctx, int i) {
 int c2_engine_get_output(c2_engine_ctx *ctx, int i, void *output) {
     std::map<int, std::string>::iterator it;
     it = ctx->outputs.find(i);
-    assert(it != ctx->outputs.end());
+    if(it == ctx->outputs.end()) {
+        LOG(ERROR) << "Couldn't find output: " << i << "\n";
+        return -1;
+    }
     auto* blob = ctx->workspace.GetBlob(it->second);
     assert(blob);
 
@@ -260,6 +263,19 @@ c2_engine_ctx* c2_engine_create(int use_cuda) {
 }
 
 
+void print_io(c2_engine_ctx *ctx) {
+    for (int i=0; i<ctx->pred_net.external_input().size(); i++) {
+        const std::string name = ctx->pred_net.external_input(i);
+        LOG(INFO) << "Found input: " << name << "\n";
+    }
+
+    for (int i=0; i<ctx->pred_net.external_output().size(); i++) {
+        const std::string name = ctx->pred_net.external_output(i);
+        LOG(INFO) << "Found output: " << name << "\n";
+    }
+}
+
+
 int _initialize(c2_engine_ctx *ctx) {
     if (ctx->use_cuda) {
         ctx->init_net.mutable_device_option()->set_device_type(caffe2::DeviceType::CUDA);
@@ -286,7 +302,6 @@ int _initialize(c2_engine_ctx *ctx) {
 
     for (int i=0; i<ctx->pred_net.external_input().size(); i++) {
         const std::string name = ctx->pred_net.external_input(i);
-        std::cerr << "Found uninitialized input " << name << "\n";
         ctx->all_inputs.push_back(name);
         auto* blob = ctx->workspace.GetBlob(name);
         if (!blob) {
@@ -296,7 +311,6 @@ int _initialize(c2_engine_ctx *ctx) {
 
     for (int i=0; i<ctx->pred_net.external_output().size(); i++) {
         const std::string name = ctx->pred_net.external_output(i);
-        std::cerr << "Found output " << name << "\n";
         ctx->outputs[i] = name;
         std::vector<int64_t> tmp;
         ctx->dims[name] = tmp;
@@ -310,11 +324,15 @@ int _initialize(c2_engine_ctx *ctx) {
         std::map<std::string, std::vector<int64_t>>::iterator jt;
         jt = ctx->dims.find(it->second);
         if (jt == ctx->dims.end()) {
-            assert(0);
+            LOG(ERROR) << "Dimensions not found in graph: " << it->second << "\n";
+            print_io(ctx);
+            LOG(ERROR) << "Aborting\n";
+            return -1;
         }
         if (std::find(ctx->all_inputs.begin(), ctx->all_inputs.end(), it->second)==ctx->all_inputs.end()) {
-            std::cerr << "Specified value input not found in graph: " << it->second << "\n";
-            std::cerr << "Aborting\n";
+            LOG(ERROR) << "Specified value input not found in graph: " << it->second << "\n";
+            print_io(ctx);
+            LOG(ERROR) << "Aborting\n";
             return -1;
         }
 
