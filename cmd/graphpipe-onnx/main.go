@@ -11,20 +11,22 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"reflect"
+	"runtime/pprof"
 	"strings"
 	"sync"
 	"time"
 	"unsafe"
 	//graphpipe "github.com/oracle/graphpipe-go"
-	//	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
 	graphpipe "github.com/oracle/graphpipe-go"
+	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
 	//	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
 )
 
-// #cgo CXXFLAGS: -I /pytorch/build/third_party/onnx/ -I /pytorch/third_party/onnx -I /pytorch/third_party/protobuf/src/  -I /pytorch/ -I /pytorch/build -I /pytorch/build/third_party/gloo -DONNX_NAMESPACE=onnx_c2 -D_GNU_SOURCE -D_REENTRANT -D CAFFE2_FORCE_FALLBACK_CUDA_MPI -D CAFFE2_PERF_WITH_AVX -D CAFFE2_PERF_WITH_AVX2 -D CAFFE2_USE_EIGEN_FOR_BLAS -D CAFFE2_USE_GFLAGS -D CAFFE2_USE_GOOGLE_GLOG -D EIGEN_MPL2_ONLY -D NDEBUG -isystem /usr/local/cuda/include -std=c++11
-// #cgo LDFLAGS: -ldl /pytorch/build/lib/libcaffe2_gpu.so  /pytorch/build/lib/libcaffe2.so  /usr/local/cuda/lib64/libcurand.so -lprotobuf -lglog -lgflags  -L/usr/local/cuda/lib64 -lcudart
+// #cgo CXXFLAGS: -I /pytorch/build/third_party/onnx/ -I /pytorch/third_party/onnx -I /pytorch/third_party/protobuf/src/  -I /pytorch/ -I /pytorch/build -I /pytorch/build/third_party/gloo -DONNX_NAMESPACE=onnx_c2 -D_GNU_SOURCE -D_REENTRANT -D CAFFE2_USE_GFLAGS -D CAFFE2_USE_GOOGLE_GLOG -D NDEBUG -isystem /usr/local/cuda/include -std=c++11 -O2
+// #cgo LDFLAGS: -ldl /pytorch/build/lib/libcaffe2_gpu.so  /pytorch/build/lib/libcaffe2.so  /usr/local/cuda/lib64/libcurand.so -lprotobuf -lglog -lgflags  -L/usr/local/cuda/lib64 -lcudart -O2
 // #include <stdlib.h>
 // #include <c2_api.h>
 import "C"
@@ -53,6 +55,8 @@ type options struct {
 	valueInputs string
 	initNet     string
 	predictNet  string
+	profile     string
+	engineCount int
 }
 
 func loadFile(uri string) ([]byte, error) {
@@ -118,11 +122,29 @@ func main() {
 				return
 			}
 
+			if opts.profile != "" {
+				f, err := os.Create(opts.profile)
+				if err != nil {
+					logrus.Fatal(err)
+				}
+				pprof.StartCPUProfile(f)
+				c := make(chan os.Signal, 1)
+				signal.Notify(c, os.Interrupt)
+				go func() {
+					for _ = range c {
+						pprof.StopCPUProfile()
+						os.Exit(0)
+					}
+				}()
+			}
+
 			logrus.Infof("Starting graphpipe-caffe2 %s", version())
 
 			if err := serve(opts); err != nil {
 				logrus.Errorf("Failed to serve: %v", err)
 				cmdExitCode = 1
+			}
+			if opts.profile != "" {
 			}
 		},
 	}
@@ -134,23 +156,25 @@ func main() {
 	f.StringVarP(&opts.model, "model", "m", "", "model to load")
 	f.StringVarP(&opts.initNet, "init_net", "", "", "init_net file to load")
 	f.StringVarP(&opts.predictNet, "predict_net", "", "", "predict_net file to load")
-	f.StringVarP(&opts.valueInputs, "value_inputs", "", "", "inputs")
+	f.StringVarP(&opts.valueInputs, "value_inputs", "", "", "value_inputs.json for the model")
 	f.BoolVarP(&opts.cache, "cache", "", false, "cache results")
 	f.BoolVarP(&opts.cuda, "cuda", "", false, "Use Cuda")
+	f.StringVarP(&opts.profile, "profile", "", "", "profile and write profiling output to this file")
+	f.IntVarP(&opts.engineCount, "engine_count", "", 1, "Engine Count")
 
 	opts.stateDir = strings.Replace(opts.stateDir, "~", os.Getenv("HOME"), -1)
 
 	if opts.model == "" {
 		opts.model = os.Getenv("GP_MODEL")
 	}
+	if opts.valueInputs == "" {
+		opts.valueInputs = os.Getenv("GP_VALUE_INPUTS")
+	}
 	if opts.initNet == "" {
 		opts.initNet = os.Getenv("GP_INIT_NET")
 	}
 	if opts.predictNet == "" {
 		opts.predictNet = os.Getenv("GP_PREDICT_NET")
-	}
-	if opts.valueInputs == "" {
-		opts.valueInputs = os.Getenv("GP_VALUE_INPUTS")
 	}
 
 	if os.Getenv("GP_CACHE") != "" {
@@ -164,15 +188,15 @@ func main() {
 }
 
 type c2Context struct {
-	Mutex sync.Mutex
-	//	ExecContexts []trtExecContext
-	CEngineCtx *C.c2_engine_ctx
-	InputDims  map[string][]int64
-	OutputDims map[string][]int64
-	Inputs     []string
-	Outputs    []string
-	modelHash  []byte
-	meta       *graphpipe.NativeMetadataResponse
+	Mutex       sync.Mutex
+	EngineCount int
+	CEngineCtxs []*C.c2_engine_ctx
+	InputDims   map[string][]int64
+	OutputDims  map[string][]int64
+	Inputs      []string
+	Outputs     []string
+	modelHash   []byte
+	meta        *graphpipe.NativeMetadataResponse
 }
 
 func readModel(uri string) ([]byte, error) {
@@ -199,18 +223,28 @@ func readModel(uri string) ([]byte, error) {
 }
 
 func serve(opts options) error {
-	var engine_ctx *C.c2_engine_ctx
+	c2c := &c2Context{}
+
 	useCuda := 0
 	if opts.cuda {
 		useCuda = 1
 	}
-	engine_ctx = C.c2_engine_create(C.int(useCuda))
+
+	c2c.EngineCount = opts.engineCount
+	for i := 0; i < c2c.EngineCount; i++ {
+		engine_ctx := C.c2_engine_create(C.int(useCuda))
+		c2c.CEngineCtxs = append(c2c.CEngineCtxs, engine_ctx)
+	}
 
 	valueInputData := make(map[string]interface{})
-
-	err := json.Unmarshal([]byte(opts.valueInputs), &valueInputData)
+	valueInputJson, err := readModel(opts.valueInputs)
 	if err != nil {
-		panic(err)
+		logrus.Fatalf("Could not load value_input: %v", err)
+	}
+
+	err = json.Unmarshal([]byte(valueInputJson), &valueInputData)
+	if err != nil {
+		logrus.Fatalf("Could not unmarshall value_input: %v", err)
 	}
 
 	for k, v := range valueInputData {
@@ -222,16 +256,11 @@ func serve(opts options) error {
 				d := int64(shape.Index(i).Interface().(float64))
 				dims = append(dims, d)
 			}
-			C.c2_engine_register_input(engine_ctx, C.CString(k), (*C.int64_t)(&dims[0]), (C.int(len(dims))), C.int(dtype))
+			for _, engine_ctx := range c2c.CEngineCtxs {
+				C.c2_engine_register_input(engine_ctx, C.CString(k), (*C.int64_t)(&dims[0]), (C.int(len(dims))), C.int(dtype))
+			}
 		}
 	}
-
-	argv := (C.malloc(C.size_t(len(os.Args)) * C.size_t(unsafe.Sizeof(uintptr(0)))))
-	tmp := (*[1<<30 - 1]*C.char)(argv)
-	for i, s := range os.Args {
-		tmp[i] = C.CString(s)
-	}
-	c2c := &c2Context{CEngineCtx: engine_ctx}
 
 	if opts.model != "" {
 		modelData, err := readModel(opts.model)
@@ -240,9 +269,11 @@ func serve(opts options) error {
 			return err
 		}
 
-		status := C.c2_engine_initialize_onnx(engine_ctx, (*C.char)(unsafe.Pointer((&modelData[0]))), C.size_t(len(modelData)))
-		if status != 0 {
-			logrus.Fatalf("Could not initialize engine\n")
+		for _, engine_ctx := range c2c.CEngineCtxs {
+			status := C.c2_engine_initialize_onnx(engine_ctx, (*C.char)(unsafe.Pointer((&modelData[0]))), C.size_t(len(modelData)))
+			if status != 0 {
+				logrus.Fatalf("Could not initialize engine\n")
+			}
 		}
 
 		h := sha256.New()
@@ -262,9 +293,11 @@ func serve(opts options) error {
 			return err
 		}
 
-		status := C.c2_engine_initialize_caffe2(engine_ctx, (*C.char)(unsafe.Pointer((&initData[0]))), C.size_t(len(initData)), (*C.char)(unsafe.Pointer((&predData[0]))), C.size_t(len(predData)))
-		if status != 0 {
-			logrus.Fatalf("Could not initialize engine\n")
+		for _, engine_ctx := range c2c.CEngineCtxs {
+			status := C.c2_engine_initialize_caffe2(engine_ctx, (*C.char)(unsafe.Pointer((&initData[0]))), C.size_t(len(initData)), (*C.char)(unsafe.Pointer((&predData[0]))), C.size_t(len(predData)))
+			if status != 0 {
+				logrus.Fatalf("Could not initialize engine\n")
+			}
 		}
 
 		h := sha256.New()
@@ -274,36 +307,58 @@ func serve(opts options) error {
 		logrus.Infof("Model hash is '%x'", c2c.modelHash)
 	}
 
-	inputCount := C.c2_engine_get_input_count(engine_ctx)
+	inputCount := C.c2_engine_get_input_count(c2c.CEngineCtxs[0])
 	c2c.Inputs = make([]string, inputCount)
 	c2c.InputDims = make(map[string][]int64)
 	c2c.OutputDims = make(map[string][]int64)
+	meta := &graphpipe.NativeMetadataResponse{}
+
 	for i := 0; i < int(inputCount); i++ {
-		cname := C.c2_engine_get_input_name(engine_ctx, C.int(i))
+		cname := C.c2_engine_get_input_name(c2c.CEngineCtxs[0], C.int(i))
 		name := C.GoString(cname)
 		c2c.Inputs[i] = name
 		dims := make([]int64, 32)
-		count := C.c2_engine_get_dimensions(engine_ctx, cname, (*C.int64_t)(unsafe.Pointer(&dims[0])))
-		c2c.InputDims[name] = dims[:count]
+		dimCount := C.c2_engine_get_dimensions(c2c.CEngineCtxs[0], cname, (*C.int64_t)(unsafe.Pointer(&dims[0])))
+		if dimCount < 0 {
+			logrus.Fatalf("Could not find dimensions for: %s", name)
+		}
+		c2c.InputDims[name] = dims[:dimCount]
+		dtype := C.c2_engine_get_dtype(c2c.CEngineCtxs[0], cname)
+
+		logrus.Debugf("Adding input '%s'", name)
+
+		io := graphpipe.NativeIOMetadata{}
+		io.Name = name
+		io.Shape = dims[:dimCount]
+		io.Type = ctype2gptype[dtype]
+		meta.Inputs = append(meta.Inputs, io)
 
 	}
 
-	outputCount := C.c2_engine_get_output_count(engine_ctx)
+	outputCount := C.c2_engine_get_output_count(c2c.CEngineCtxs[0])
 	c2c.Outputs = make([]string, outputCount)
 	for i := 0; i < int(outputCount); i++ {
-		cname := C.c2_engine_get_output_name(engine_ctx, C.int(i))
+		cname := C.c2_engine_get_output_name(c2c.CEngineCtxs[0], C.int(i))
 		name := C.GoString(cname)
 		c2c.Outputs[i] = name
 		dims := make([]int64, 32)
-		count := C.c2_engine_get_dimensions(engine_ctx, cname, (*C.int64_t)(unsafe.Pointer(&dims[0])))
-		c2c.OutputDims[name] = dims[:count]
-		logrus.Println(name + " output")
-		logrus.Println(dims[:count])
+		dimCount := C.c2_engine_get_dimensions(c2c.CEngineCtxs[0], cname, (*C.int64_t)(unsafe.Pointer(&dims[0])))
+		if dimCount < 0 {
+			logrus.Fatalf("Could not find dimensions for: %s", name)
+		}
+		c2c.OutputDims[name] = dims[:dimCount]
+		dtype := C.c2_engine_get_dtype(c2c.CEngineCtxs[0], cname)
+
+		logrus.Debugf("Adding output '%s'", name)
+		io := graphpipe.NativeIOMetadata{}
+		io.Name = name
+		io.Shape = dims[:dimCount]
+		io.Type = ctype2gptype[dtype]
+		meta.Outputs = append(meta.Outputs, io)
 	}
 
-	meta := &graphpipe.NativeMetadataResponse{}
 	meta.Name = opts.model
-	meta.Description = "Implementation of tensorflow model server using graphpipe.  Use a graphpipe client to make requests to this server."
+	meta.Description = "Implementation of onnx/caffe2 model server using graphpipe.  Use a graphpipe client to make requests to this server."
 	meta.Server = "graphpipe-tf"
 	meta.Version = version()
 
@@ -315,11 +370,9 @@ func serve(opts options) error {
 	}
 
 	serveOpts := &graphpipe.ServeRawOptions{
-		Listen:    opts.listen,
-		CacheFile: cachePath,
-		Meta:      c2c.meta,
-		//		DefaultInputs:  dIn,
-		//		DefaultOutputs: dOut,
+		Listen:     opts.listen,
+		CacheFile:  cachePath,
+		Meta:       c2c.meta,
 		Apply:      c2c.apply,
 		GetHandler: c2c.getHandler,
 	}
@@ -355,41 +408,99 @@ var gptype2ctype = []int{
 	C.TensorProto_DataType_STRING,    // Type_String = 12,
 }
 
-func (c2c *c2Context) apply(requestContext *graphpipe.RequestContext, config string, inputs map[string]*graphpipe.NativeTensor, outputNames []string) ([]*graphpipe.NativeTensor, error) {
+var ctype2gptype = []uint8{
+	graphpipefb.TypeNull,    // TensorProto_DataType_UNDEFINED = 0,
+	graphpipefb.TypeFloat32, // TensorProto_DataType_FLOAT = 1,
+	graphpipefb.TypeInt32,   // TensorProto_DataType_INT32 = 2,
+	graphpipefb.TypeInt8,    // TensorProto_DataType_BYTE = 3,
+	graphpipefb.TypeString,  // TensorProto_DataType_STRING = 4,
+	graphpipefb.TypeNull,    // TensorProto_DataType_BOOL = 5,
+	graphpipefb.TypeInt8,    // TensorProto_DataType_UINT8 = 6,
+	graphpipefb.TypeInt8,    // TensorProto_DataType_INT8 = 7,
+	graphpipefb.TypeUint16,  // TensorProto_DataType_UINT16 = 8,
+	graphpipefb.TypeNull,    // TensorProto_DataType_INT16 = 9,
+	graphpipefb.TypeInt64,   // TensorProto_DataType_INT64 = 10,
+	graphpipefb.TypeFloat16, // TensorProto_DataType_FLOAT16 = 12,
+	graphpipefb.TypeFloat64, // TensorProto_DataType_DOUBLE = 13
+}
 
-	c2c.Mutex.Lock()
-	defer c2c.Mutex.Unlock()
+func (c2c *c2Context) apply(requestContext *graphpipe.RequestContext, config string, inputs map[string]*graphpipe.NativeTensor, outputNames []string) ([]*graphpipe.NativeTensor, error) {
+	var engine_ctx *C.c2_engine_ctx
+	if c2c.EngineCount == 1 {
+		c2c.Mutex.Lock()
+		engine_ctx = c2c.CEngineCtxs[0]
+		requestContext.CleanupFunc = func() {
+			c2c.Mutex.Unlock()
+		}
+	} else {
+		for {
+			c2c.Mutex.Lock()
+			if len(c2c.CEngineCtxs) > 0 {
+				engine_ctx = c2c.CEngineCtxs[0]
+				c2c.CEngineCtxs = c2c.CEngineCtxs[1:]
+				c2c.Mutex.Unlock()
+				break
+			}
+			c2c.Mutex.Unlock()
+			time.Sleep(time.Second / 2000)
+		}
+
+		requestContext.CleanupFunc = func() {
+			c2c.Mutex.Lock()
+			c2c.CEngineCtxs = append(c2c.CEngineCtxs, engine_ctx)
+			c2c.Mutex.Unlock()
+		}
+	}
 
 	outputNts := make([]*graphpipe.NativeTensor, len(outputNames))
 	for name, input := range inputs {
-		//logrus.Println(input.Shape)
-		//logrus.Println(input.Type)
 
 		cname := C.CString(name)
 		defer C.free(unsafe.Pointer(cname))
+		dtype := int(C.c2_engine_get_dtype(engine_ctx, cname))
+		if dtype < 0 {
+			return nil, fmt.Errorf("Could not find input: %s", name)
+		}
+		if gptype2ctype[input.Type] != dtype {
+			return nil, fmt.Errorf("Input type mismatch.  Got %d expected %d", gptype2ctype[input.Type], C.c2_engine_get_dtype(engine_ctx, cname))
+		}
 
-		if gptype2ctype[input.Type] != int(C.c2_engine_get_dtype(c2c.CEngineCtx, cname)) {
-			logrus.Errorf("Input type mismatch.  Got %d expected %d", gptype2ctype[input.Type], C.c2_engine_get_dtype(c2c.CEngineCtx, cname))
-			return nil, nil
+		dims := c2c.InputDims[name]
+		for i := 1; i < len(dims); i++ {
+			if input.Shape[i] != dims[i] {
+				return nil, fmt.Errorf("Invalid input shape for %s.  Expected %v, got %v", name, dims, input.Shape)
+			}
 		}
 
 		size := len(input.Data)
-		C.c2_set_input_batch(c2c.CEngineCtx, cname, unsafe.Pointer(&input.Data[0]), C.int(size))
+		C.c2_set_input_batch(engine_ctx, cname, unsafe.Pointer(&input.Data[0]), C.int(size))
 	}
 
-	C.c2_execute_batch(c2c.CEngineCtx)
+	C.c2_execute_batch(engine_ctx)
 	for i, name := range outputNames {
 		cname := C.CString(name)
 		defer C.free(unsafe.Pointer(cname))
-		idx := C.c2_engine_get_output_index(c2c.CEngineCtx, cname)
-		size := C.c2_engine_get_output_size(c2c.CEngineCtx, idx)
-		itemsize := int64(C.c2_engine_get_itemsize(c2c.CEngineCtx, cname))
-		dtype := int(C.c2_engine_get_dtype(c2c.CEngineCtx, cname))
+
+		idx := C.c2_engine_get_output_index(engine_ctx, cname)
+		if idx < 0 {
+			return nil, fmt.Errorf("Could not find requested output: %s", name)
+		}
+		size := C.c2_engine_get_output_size(engine_ctx, idx)
+		if size < 0 {
+			return nil, fmt.Errorf("Could not find size for requested output: %s", name)
+		}
+		itemsize := int64(C.c2_engine_get_itemsize(engine_ctx, cname))
+		if itemsize < 0 {
+			return nil, fmt.Errorf("Could not find itemsize for requested output: %s", name)
+		}
+		dtype := int(C.c2_engine_get_dtype(engine_ctx, cname))
+		if dtype < 0 {
+			return nil, fmt.Errorf("Could not find dtype for requested output: %s", name)
+		}
 		buf := make([]byte, size)
-		actual := C.c2_engine_get_output(c2c.CEngineCtx, idx, unsafe.Pointer(&buf[0]))
+		actual := C.c2_engine_get_output(engine_ctx, idx, unsafe.Pointer(&buf[0]))
 		if actual != size {
-			logrus.Errorf("Returned size mismatch: %s != %s", size, actual)
-			return nil, nil
+			return nil, fmt.Errorf("Returned size mismatch: %s != %s", size, actual)
 		}
 
 		dims := c2c.OutputDims[name]
@@ -406,18 +517,15 @@ func (c2c *c2Context) apply(requestContext *graphpipe.RequestContext, config str
 		for gp, dt := range gptype2ctype {
 			if dt == dtype {
 				gptype = gp
+				break
 			}
 		}
 
 		if gptype < 0 {
-			logrus.Errorf("Unhandled type %d", dtype)
-			return nil, nil
+			return nil, fmt.Errorf("Unhandled type %d", dtype)
 		}
 
 		shape[0] = int64(size) / (rowSize * itemsize)
-		logrus.Println(size)
-		logrus.Println(rowSize)
-		logrus.Println(dims)
 
 		nt := &graphpipe.NativeTensor{}
 		nt.InitWithData(buf, shape, uint8(gptype))
