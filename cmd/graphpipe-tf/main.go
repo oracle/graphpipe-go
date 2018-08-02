@@ -241,10 +241,11 @@ func readModel(uri string) ([]byte, error) {
 			Dial: (&net.Dialer{
 				Timeout: 5 * time.Second,
 			}).Dial,
+			Proxy:               http.ProxyFromEnvironment,
 			TLSHandshakeTimeout: 5 * time.Second,
 		}
 		var client = &http.Client{
-			Timeout:   time.Second * 10,
+			Timeout:   time.Second * 60,
 			Transport: transport,
 		}
 		response, err := client.Get(uri)
