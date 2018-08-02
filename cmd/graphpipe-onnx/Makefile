@@ -1,4 +1,6 @@
 NAME=graphpipe-onnx
+LIBCAFFE_IMAGE=libcaffe2
+RUN_TYPE?=gpu
 
 sha = $(shell git rev-parse --short HEAD | tr -d ' \n')
 ifeq ($(VERSION),)
@@ -16,8 +18,61 @@ endif
 
 .PHONY: $(NAME)
 
-$(NAME): deps
+ifeq ('$(RUN_TYPE)', 'gpu')
+	#DOCKER=nvidia-docker
+	LD_STUBS=LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs/:$$LD_LIBRARY_PATH
+endif
+
+.PHONY: $(NAME)
+
+$(NAME):
 	go build -ldflags '-X "main.ver=$(VERSION)" -X "main.sha=$(sha)"'
+
+in-docker:
+	docker run -it --rm \
+		-v $(PWD)/../../:/go/src/github.com/oracle/graphpipe-go \
+		-w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-onnx \
+		-e http_proxy=$(http_proxy) \
+		-e https_proxy=$(https_proxy) \
+		-e GOPATH=/go \
+		-e CHOWN=$$(id -u):$$(id -g) \
+		$(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
+		/usr/bin/make $(RUN_TYPE) graphpipe-onnx fix-perms
+
+fix-perms:
+	@if [ -n "$${CHOWN}" ]; then \
+		chown -R $${CHOWN} vendor $(NAME) ../../vendor; \
+	fi
+
+
+cpu:
+	# pass
+
+oraclelinux-cpu:
+	# pass
+
+gpu:
+	ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/libcuda.so.1
+
+
+
+dev-container:
+	docker build \
+		-f Dockerfile.$(RUN_TYPE)-dev \
+		-t $(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
+		--build-arg http_proxy=$(http_proxy) \
+		--build-arg https_proxy=$(https_proxy) \
+		.
+
+shell:
+	docker run -it --rm \
+		-v $(PWD)/../../:/go/src/github.com/oracle/graphpipe-go \
+		-w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-onnx \
+		-e http_proxy=$(http_proxy) \
+		-e https_proxy=$(https_proxy) \
+		$(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
+		/bin/sh
+
 
 install-govendor:
 	@if [ ! -e $(GOPATH)/bin/govendor ]; then \

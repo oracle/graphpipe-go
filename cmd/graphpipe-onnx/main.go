@@ -5,8 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"github.com/Sirupsen/logrus"
-	"github.com/spf13/cobra"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -19,14 +17,17 @@ import (
 	"sync"
 	"time"
 	"unsafe"
+
+	"github.com/Sirupsen/logrus"
+	"github.com/spf13/cobra"
 	//graphpipe "github.com/oracle/graphpipe-go"
 	graphpipe "github.com/oracle/graphpipe-go"
 	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
 	//	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
 )
 
-// #cgo CXXFLAGS: -I /pytorch/build/third_party/onnx/ -I /pytorch/third_party/onnx -I /pytorch/third_party/protobuf/src/  -I /pytorch/ -I /pytorch/build -I /pytorch/build/third_party/gloo -DONNX_NAMESPACE=onnx_c2 -D_GNU_SOURCE -D_REENTRANT -D CAFFE2_USE_GFLAGS -D CAFFE2_USE_GOOGLE_GLOG -D NDEBUG -isystem /usr/local/cuda/include -std=c++11 -O2
-// #cgo LDFLAGS: -ldl /pytorch/build/lib/libcaffe2_gpu.so  /pytorch/build/lib/libcaffe2.so  /usr/local/cuda/lib64/libcurand.so -lprotobuf -lglog -lgflags  -L/usr/local/cuda/lib64 -lcudart -O2
+// #cgo CXXFLAGS: -DONNX_NAMESPACE=onnx_c2 -D_GNU_SOURCE -D_REENTRANT -D CAFFE2_USE_GFLAGS -D CAFFE2_USE_GOOGLE_GLOG -D NDEBUG -isystem /usr/local/cuda/include -std=c++11 -O2
+// #cgo LDFLAGS: -ldl /usr/local/lib/libcaffe2_gpu.so  /usr/local/lib/libcaffe2.so  /usr/local/cuda/lib64/libcurand.so -lprotobuf -lglog -lgflags  -L/usr/local/cuda/lib64 -lcudart
 // #include <stdlib.h>
 // #include <c2_api.h>
 import "C"
