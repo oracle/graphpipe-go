@@ -1,0 +1,9 @@
+FROM oraclelinux:7-slim
+# tar and gzip are not included in slim
+RUN yum install --enablerepo ol7_optional_latest -y tar gzip make git curl golang \
+  && rm -rf /var/cache/yum/*
+ENV TF_TYPE=cpu
+ENV TF_DIR=/usr/local
+RUN go get -u github.com/kardianos/govendor
+ADD https://storage.googleapis.com/tensorflow/libtensorflow/libtensorflow-${TF_TYPE}-linux-x86_64-1.8.0.tar.gz libtensorflow.tar.gz
+RUN tar -C /usr/local -xzf libtensorflow.tar.gz

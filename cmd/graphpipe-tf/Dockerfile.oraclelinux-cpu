@@ -1,4 +1,6 @@
-FROM ubuntu:16.04
+FROM oraclelinux:7-slim
+RUN yum install -y tar gzip \
+    && rm -rf /var/cache/yum/*
 ENV TF_TYPE=cpu
 ENV TF_DIR=/usr/local
 ENV GOPATH=/go
