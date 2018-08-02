@@ -43,11 +43,15 @@ in-docker:
 		-v $$(dirname $(SSH_AUTH_SOCK)):$$(dirname $(SSH_AUTH_SOCK)) \
 		-e SSH_AUTH_SOCK=$(SSH_AUTH_SOCK) \
 		-e USE_SUDO=0 \
+		-e GOPATH=/go \
 		-e CHOWN=$$(id -u):$$(id -g) \
 		$(LIBTF_IMAGE):$(TF_TYPE)-dev \
 		/usr/bin/make install-govendor install-tensorflow deps $(TF_TYPE) graphpipe-tf fix-perms
 
 cpu:
+	# pass
+
+oraclelinux-cpu:
 	# pass
 
 gpu:
