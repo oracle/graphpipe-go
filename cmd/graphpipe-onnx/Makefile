@@ -1,5 +1,6 @@
 NAME=graphpipe-onnx
 LIBCAFFE_IMAGE=libcaffe2
+GRAPHPIPE_IMAGE=graphpipe-onnx
 RUN_TYPE?=gpu
 
 sha = $(shell git rev-parse --short HEAD | tr -d ' \n')
@@ -60,6 +61,14 @@ dev-container:
 	docker build \
 		-f Dockerfile.$(RUN_TYPE)-dev \
 		-t $(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
+		--build-arg http_proxy=$(http_proxy) \
+		--build-arg https_proxy=$(https_proxy) \
+		.
+
+runtime-container:
+	docker build \
+		-f Dockerfile.$(RUN_TYPE) \
+		-t $(GRAPHPIPE_IMAGE):$(RUN_TYPE) \
 		--build-arg http_proxy=$(http_proxy) \
 		--build-arg https_proxy=$(https_proxy) \
 		.
