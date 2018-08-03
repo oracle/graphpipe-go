@@ -65,9 +65,10 @@ func loadFile(uri string) ([]byte, error) {
 		strings.HasPrefix(uri, "https://") {
 		var transport = &http.Transport{
 			Dial: (&net.Dialer{
-				Timeout: 10 * time.Second,
+				Timeout: 5 * time.Second,
 			}).Dial,
-			TLSHandshakeTimeout: 10 * time.Second,
+			Proxy:               http.ProxyFromEnvironment,
+			TLSHandshakeTimeout: 5 * time.Second,
 		}
 		var client = &http.Client{
 			Timeout:   time.Second * 60,
