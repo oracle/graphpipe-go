@@ -371,11 +371,13 @@ func serve(opts options) error {
 	}
 
 	serveOpts := &graphpipe.ServeRawOptions{
-		Listen:     opts.listen,
-		CacheFile:  cachePath,
-		Meta:       c2c.meta,
-		Apply:      c2c.apply,
-		GetHandler: c2c.getHandler,
+		Listen:         opts.listen,
+		CacheFile:      cachePath,
+		Meta:           c2c.meta,
+		Apply:          c2c.apply,
+		GetHandler:     c2c.getHandler,
+		DefaultInputs:  c2c.Inputs,
+		DefaultOutputs: c2c.Outputs,
 	}
 	if err := graphpipe.ServeRaw(serveOpts); err != nil {
 		return err

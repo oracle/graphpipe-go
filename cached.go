@@ -408,7 +408,11 @@ func getResultsCached(c *appContext, requestContext *RequestContext, req *graphp
 		keys[i] = getKey(c, inputs, i)
 	}
 
-	outputNames := getOutputNames(req)
+	outputNames, err := getOutputNames(c, req)
+	if err != nil {
+		return nil, err
+	}
+
 	if len(outputNames) == 0 {
 		outputNames = append(outputNames, c.defaultOutputs...)
 	}

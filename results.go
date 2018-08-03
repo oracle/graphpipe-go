@@ -6,12 +6,23 @@ import (
 	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
 )
 
-func getOutputNames(req *graphpipefb.InferRequest) []string {
-	outputNames := make([]string, req.OutputNamesLength())
-	for i := 0; i < req.OutputNamesLength(); i++ {
-		outputNames[i] = string(req.OutputNames(i))
+func getOutputNames(c *appContext, req *graphpipefb.InferRequest) ([]string, error) {
+	if req.OutputNamesLength() == 0 {
+		if len(c.defaultOutputs) == 0 {
+			return nil, fmt.Errorf("No default outputs available.  Please specify one or more outputs.")
+		}
+		return c.defaultOutputs, nil
+	} else {
+		outputNames := make([]string, req.OutputNamesLength())
+		for i := 0; i < req.OutputNamesLength(); i++ {
+			name := string(req.OutputNames(i))
+			if name == "" {
+				return nil, fmt.Errorf("Could not init output names")
+			}
+			outputNames[i] = name
+		}
+		return outputNames, nil
 	}
-	return outputNames
 }
 
 func getInputMap(c *appContext, req *graphpipefb.InferRequest) (map[string]*NativeTensor, error) {
@@ -38,6 +49,9 @@ func getResults(c *appContext, requestContext *RequestContext, req *graphpipefb.
 	if err != nil {
 		return nil, err
 	}
-	outputNames := getOutputNames(req)
+	outputNames, err := getOutputNames(c, req)
+	if err != nil {
+		return nil, err
+	}
 	return c.apply(requestContext, string(req.Config()), inputMap, outputNames)
 }

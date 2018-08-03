@@ -126,13 +126,11 @@ type tfContext struct {
 
 	model *tf.SavedModel
 
-	meta           *graphpipe.NativeMetadataResponse
-	outputs        map[string]tf.Output
-	names          []string
-	types          []byte
-	shapes         [][]int64
-	defaultInputs  string
-	defaultOutputs []string
+	meta    *graphpipe.NativeMetadataResponse
+	outputs map[string]tf.Output
+	names   []string
+	types   []byte
+	shapes  [][]int64
 }
 
 func getSessionOpts() (*tf.SessionOptions, error) {
@@ -326,23 +324,23 @@ func serve(opts options) error {
 		}
 	}
 
-	badIO := false
+	missingIO := false
 
 	for _, inp := range dIn {
 		if !graphContainsNode(c.graphDef, inp) {
 			logrus.Errorf("Couldn't find input in graph: %s", inp)
-			badIO = true
+			missingIO = true
 		}
 	}
 
 	for _, outp := range dOut {
 		if !graphContainsNode(c.graphDef, outp) {
 			logrus.Errorf("Couldn't find output in graph: %s", outp)
-			badIO = true
+			missingIO = true
 		}
 	}
 
-	if badIO {
+	if missingIO {
 		return fmt.Errorf("Could not find some inputs and/or outputs.  Aborting.")
 	}
 
@@ -469,7 +467,7 @@ func getInputMap(c *tfContext, inputs map[string]*graphpipe.NativeTensor) (map[t
 		}
 		output, ok = c.outputs[name]
 		if !ok {
-			msg := "Could not find output '%s'"
+			msg := "Could not find input '%s'"
 			logrus.Errorf(msg, name)
 			return nil, fmt.Errorf(msg, name)
 		}
