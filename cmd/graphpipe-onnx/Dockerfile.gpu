@@ -10,4 +10,6 @@ RUN apt-get -qq update && apt-get -qq -y install curl bzip2 \
     && conda update conda
 RUN conda install -c caffe2 caffe2-cuda9.0-cudnn7
 COPY graphpipe-onnx /
-ENTRYPOINT /graphpipe-onnx
+COPY lib/libcaffe2.so /usr/local/lib/libcaffe2.so
+COPY lib/libcaffe2_gpu.so /usr/local/lib/libcaffe2_gpu.so
+ENTRYPOINT ["/graphpipe-onnx"]

@@ -29,6 +29,18 @@ endif
 $(NAME):
 	go build -ldflags '-X "main.ver=$(VERSION)" -X "main.sha=$(sha)"'
 
+shell-in-docker:
+	nvidia-docker run -it --rm \
+		-v $(PWD)/../../:/go/src/github.com/oracle/graphpipe-go \
+		-w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-onnx \
+		-p 9000:9000 \
+		-e http_proxy=$(http_proxy) \
+		-e https_proxy=$(https_proxy) \
+		-e GOPATH=/go \
+		-e CHOWN=$$(id -u):$$(id -g) \
+		$(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
+		/bin/bash
+
 in-docker:
 	docker run -it --rm \
 		-v $(PWD)/../../:/go/src/github.com/oracle/graphpipe-go \
@@ -38,13 +50,29 @@ in-docker:
 		-e GOPATH=/go \
 		-e CHOWN=$$(id -u):$$(id -g) \
 		$(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
-		/usr/bin/make $(RUN_TYPE) graphpipe-onnx fix-perms
+		/usr/bin/make $(RUN_TYPE) graphpipe-onnx copy-files fix-perms
+
+run-sample-server:
+	docker run -it --rm \
+		-v $(PWD)/../../:/go/src/github.com/oracle/graphpipe-go \
+		-w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-onnx \
+		-e http_proxy=$(http_proxy) \
+		-p 9000:9000 \
+		-e https_proxy=$(https_proxy) \
+		-e GOPATH=/go \
+		-e CHOWN=$$(id -u):$$(id -g) \
+		$(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
+		./graphpipe-onnx --model=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.onnx --value_inputs=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.value_inputs.json --listen=0.0.0.0:9000
+
+
+copy-files:
+	cp /pytorch/build/lib/libcaffe2.so lib/
+	cp /pytorch/build/lib/libcaffe2_gpu.so lib/
 
 fix-perms:
 	@if [ -n "$${CHOWN}" ]; then \
-		chown -R $${CHOWN} vendor $(NAME) ../../vendor; \
+		chown -R $${CHOWN} lib/libca* vendor $(NAME) ../../vendor; \
 	fi
-
 
 cpu:
 	# pass
