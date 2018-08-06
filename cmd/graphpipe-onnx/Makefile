@@ -20,8 +20,11 @@ endif
 .PHONY: $(NAME)
 
 ifeq ('$(RUN_TYPE)', 'gpu')
-	#DOCKER=nvidia-docker
-	LD_STUBS=LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs/:$$LD_LIBRARY_PATH
+LD_STUBS=LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs/:$$LD_LIBRARY_PATH
+GP_ENABLE_CUDA=1
+CGO_LDFLAGS=/usr/local/cuda/lib64/libcurand.so /usr/local/lib/libcaffe2_gpu.so /usr/local/cuda-9.0/targets/x86_64-linux/lib/libcudart.so
+CGO_CXXFLAGS=-DGP_ENABLE_CUDA
+CUDA_FLAG=--cuda
 endif
 
 .PHONY: $(NAME)
@@ -47,10 +50,12 @@ in-docker:
 		-w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-onnx \
 		-e http_proxy=$(http_proxy) \
 		-e https_proxy=$(https_proxy) \
+		-e "CGO_LDFLAGS=$(CGO_LDFLAGS)" \
+		-e CGO_CXXFLAGS=$(CGO_CXXFLAGS) \
 		-e GOPATH=/go \
 		-e CHOWN=$$(id -u):$$(id -g) \
 		$(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
-		/usr/bin/make $(RUN_TYPE) graphpipe-onnx copy-files fix-perms
+		/usr/bin/make $(RUN_TYPE) graphpipe-onnx copy-files-$(RUN_TYPE) fix-perms
 
 run-devserver:
 	docker run -it --rm \
@@ -61,11 +66,14 @@ run-devserver:
 		-e https_proxy=$(https_proxy) \
 		-e GOPATH=/go \
 		-e CHOWN=$$(id -u):$$(id -g) \
-		$(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
-		./graphpipe-onnx --model=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.onnx --value_inputs=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.value_inputs.json --listen=0.0.0.0:9000
+		$(GRAPHPIPE_IMAGE):$(RUN_TYPE) \
+		--model=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.onnx --value_inputs=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.value_inputs.json --listen=0.0.0.0:9000 $(CUDA_FLAG)
 
 
-copy-files:
+copy-files-cpu:
+	cp /pytorch/build/lib/libcaffe2.so lib/
+
+copy-files-gpu:
 	cp /pytorch/build/lib/libcaffe2.so lib/
 	cp /pytorch/build/lib/libcaffe2_gpu.so lib/
 

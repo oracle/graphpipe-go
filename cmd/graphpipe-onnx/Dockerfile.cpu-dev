@@ -1,0 +1,71 @@
+FROM ubuntu:16.04
+
+RUN apt update
+RUN apt install -y software-properties-common
+RUN add-apt-repository ppa:gophers/archive
+
+RUN apt update
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TERM=linux
+
+ENV RUN_TYPE=cpu
+ENV GOPATH=/go
+
+RUN mkdir -p /go/src
+RUN apt-get update && apt-get install -o Acquire::https::No-Cache=True -o Acquire::http::No-Cache=True --fix-missing -y linux-libc-dev 
+RUN apt-get update && apt-get install -o Acquire::https::No-Cache=True -o Acquire::http::No-Cache=True --fix-missing -y linux-libc-dev libavcodec-dev libavcodec-ffmpeg56
+RUN apt-get update && apt-get install -o Acquire::https::No-Cache=True -o Acquire::http::No-Cache=True --fix-missing -y manpages-dev
+RUN apt-get update && apt-get install -o Acquire::https::No-Cache=True -o Acquire::http::No-Cache=True --fix-missing -y libopenmpi-dev
+
+RUN apt-get update && apt-get install -y --no-install-recommends -o Acquire::https::No-Cache=True -o Acquire::http::No-Cache=True \
+	  build-essential \
+	  cmake \
+	  git \
+	  libgoogle-glog-dev \
+	  libgtest-dev \
+	  libiomp-dev \
+	  libleveldb-dev \
+	  liblmdb-dev \
+	  libopencv-dev \
+	  libopenmpi-dev \
+	  libsnappy-dev \
+	  libprotobuf-dev \
+	  protobuf-compiler \
+	  cmake \
+	  wget
+
+RUN apt install -y git curl golang-1.10-go
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+	  python-dev \
+	  python-pip \
+	  openmpi-bin \
+	  openmpi-doc
+
+RUN git clone --recursive https://github.com/pytorch/pytorch.git && cd pytorch
+WORKDIR /pytorch
+RUN git checkout v0.4.1
+RUN git submodule update --init --recursive
+RUN mkdir build
+WORKDIR /pytorch/build
+RUN apt install -y cmake
+RUN apt install -y wget
+
+#RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB
+#RUN apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS-2019.PUB
+#RUN sh -c 'echo deb https://apt.repos.intel.com/mkl all main > /etc/apt/sources.list.d/intel-mkl.list'
+#RUN apt-get update && apt-get install -y intel-mkl-64bit-2018.3-051
+#RUN echo "/opt/intel/compilers_and_libraries_2018.3.222/linux/mkl/lib/intel64_lin/" > /etc/ld.so.conf.d/intel_mkl.conf
+#RUN ldconfig
+
+RUN pip install --upgrade pip
+RUN pip install --user setuptools
+RUN pip install --user \
+      future \
+      numpy \
+      protobuf
+RUN cmake .. -DBLAS="Eigen" -DUSE_NATIVE_ARCH=ON
+RUN make -j 8 install
+
+ENV GOROOT=/usr/lib/go-1.10
+ENV PATH="${GOPATH}/bin:${GOROOT}/bin:${PATH}"

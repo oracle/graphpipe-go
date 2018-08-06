@@ -3,7 +3,12 @@
 #include "caffe2/core/predictor.h"
 #include "caffe2/utils/proto_utils.h"
 #include "caffe2/onnx/backend.h"
+#include "caffe2/core/types.h"
+#ifdef GP_ENABLE_CUDA
+
 #include "caffe2/core/context_gpu.h"
+
+#endif
 
 #include "c2_api.h"
 
@@ -76,8 +81,10 @@ int c2_engine_get_dtype(c2_engine_ctx *ctx, char *name) {
 
 void _do_tensor_copy(c2_engine_ctx *ctx, caffe2::Blob *blob, caffe2::TensorCPU &input) {
     if (ctx->use_cuda) {
+#ifdef GP_ENABLE_CUDA
         auto t = blob->GetMutable<caffe2::TensorCUDA>();
         t->CopyFrom(input);
+#endif
     }
     else {
         auto t = blob->GetMutable<caffe2::TensorCPU>();
@@ -111,9 +118,11 @@ int c2_set_input_batch(c2_engine_ctx *ctx, char *name, void *input, int byte_cou
             case caffe2::TensorProto_DataType_FLOAT:
                 COPY_INPUT(float);
                 break;
+#ifdef GP_ENABLE_CUDA
             case caffe2::TensorProto_DataType_FLOAT16:
                 COPY_INPUT(caffe2::float16);
                 break;
+#endif
             case caffe2::TensorProto_DataType_INT32:
                 COPY_INPUT(int32_t);
                 break;
@@ -180,9 +189,13 @@ int c2_engine_get_output_size(c2_engine_ctx *ctx, int i) {
     assert(blob);
 
     if (ctx->use_cuda) {
+#ifdef GP_ENABLE_CUDA
         auto &t = blob->Get<caffe2::TensorCUDA>();
         size_t size = t.size() * t.itemsize();
         return size;
+#else
+        return -1;
+#endif
     }
     else {
         auto &t = blob->Get<caffe2::TensorCPU>();
@@ -205,10 +218,14 @@ int c2_engine_get_output(c2_engine_ctx *ctx, int i, void *output) {
     const void *d;
     size_t size;
     if (ctx->use_cuda) {
+#ifdef GP_ENABLE_CUDA
         auto t = caffe2::TensorCPU(blob->Get<caffe2::TensorCUDA>());
         size = t.size() * t.itemsize();
         d = t.raw_data();
         memcpy(output, d, size);
+#else
+        return -1;
+#endif
     }
     else {
         auto &t = blob->Get<caffe2::TensorCPU>();
@@ -259,12 +276,17 @@ int c2_engine_get_dimensions(c2_engine_ctx *ctx, char *name, int64_t *dimensions
 c2_engine_ctx* c2_engine_create(int use_cuda) {
 	c2_engine_ctx *ctx = new c2_engine_ctx();
     if (use_cuda) {
+#ifdef GP_ENABLE_CUDA
         int gpu_count;
         CUDA_ENFORCE(cudaGetDeviceCount(&gpu_count));
         if (gpu_count <=0) {
             LOG(ERROR) << "No cuda device found.  Aborting\n";
             return NULL;
         }
+#else
+        LOG(ERROR) << "No cuda device found.  Aborting\n";
+        return NULL;
+#endif
     }
     ctx->use_cuda = use_cuda;
     return ctx;
@@ -286,6 +308,7 @@ void print_io(c2_engine_ctx *ctx) {
 
 int _initialize(c2_engine_ctx *ctx) {
     if (ctx->use_cuda) {
+#ifdef GP_ENABLE_CUDA
         ctx->init_net.mutable_device_option()->set_device_type(caffe2::DeviceType::CUDA);
         ctx->pred_net.mutable_device_option()->set_device_type(caffe2::DeviceType::CUDA);
         for(int i = 0; i<ctx->pred_net.op_size(); ++i) {
@@ -294,6 +317,9 @@ int _initialize(c2_engine_ctx *ctx) {
         for(int i = 0; i < ctx->init_net.op_size(); ++i){
             ctx->init_net.mutable_op(i)->mutable_device_option()->set_device_type(caffe2::DeviceType::CUDA);
         }
+#else
+        return -1;
+#endif
     }
     else {
         ctx->pred_net.mutable_device_option()->set_device_type(caffe2::DeviceType::CPU);
@@ -356,9 +382,11 @@ int _initialize(c2_engine_ctx *ctx) {
             case caffe2::TensorProto_DataType_FLOAT:
                 SETUP_INPUT(float)
                 break;
+#ifdef GP_ENABLE_CUDA
             case caffe2::TensorProto_DataType_FLOAT16:
                 SETUP_INPUT(caffe2::float16)
                 break;
+#endif
             case caffe2::TensorProto_DataType_INT32:
                 SETUP_INPUT(int32_t)
                 break;
@@ -396,6 +424,7 @@ int _initialize(c2_engine_ctx *ctx) {
         auto* blob = ctx->workspace.GetBlob(it->second);
 
         if (ctx->use_cuda) {
+#ifdef GP_ENABLE_CUDA
             auto data = caffe2::TensorCPU(blob->Get<caffe2::TensorCUDA>());
             std::vector<int64_t> tmp;
             for (int j=0;j<data.dims().size(); j++) {
@@ -404,6 +433,9 @@ int _initialize(c2_engine_ctx *ctx) {
             ctx->dims[it->second] = tmp;
             ctx->itemsizes[it->second] = data.itemsize();
             ctx->dtypes[it->second] = caffe2::TypeMetaToDataType(data.meta());
+#else
+            return -1;
+#endif
         }
         else {
             auto &data = blob->Get<caffe2::TensorCPU>();

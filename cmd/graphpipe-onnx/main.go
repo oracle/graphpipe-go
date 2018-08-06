@@ -27,7 +27,7 @@ import (
 )
 
 // #cgo CXXFLAGS: -DONNX_NAMESPACE=onnx_c2 -D_GNU_SOURCE -D_REENTRANT -D CAFFE2_USE_GFLAGS -D CAFFE2_USE_GOOGLE_GLOG -D NDEBUG -isystem /usr/local/cuda/include -std=c++11 -O2
-// #cgo LDFLAGS: -ldl /usr/local/lib/libcaffe2_gpu.so  /usr/local/lib/libcaffe2.so  /usr/local/cuda/lib64/libcurand.so -lprotobuf -lglog -lgflags  -L/usr/local/cuda/lib64 -lcudart
+// #cgo LDFLAGS: -ldl /usr/local/lib/libcaffe2.so -lprotobuf -lglog -lgflags
 // #include <stdlib.h>
 // #include <c2_api.h>
 import "C"
@@ -102,6 +102,9 @@ func main() {
 			}
 		},
 		Run: func(cmd *cobra.Command, args []string) {
+			if opts.cuda {
+				logrus.Infof("CUDA is enabled")
+			}
 			if opts.version {
 				fmt.Printf("%s\n", version())
 				return
@@ -182,6 +185,7 @@ func main() {
 	if os.Getenv("GP_CACHE") != "" {
 		val := strings.ToLower(os.Getenv("GP_CACHE"))
 		if val == "1" || val == "true" {
+			logrus.Infof("Caching is enabled")
 			opts.cache = true
 		}
 	}

@@ -1,0 +1,20 @@
+FROM ubuntu:16.04
+ENV LD_LIBRARY_PATH=/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/lib
+ENV PATH=/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/go-1.10/bin:/go/bin
+ENV RUN_TYPE=cpu
+RUN apt-get update && apt-get install -y --no-install-recommends \
+	  libgtest-dev \
+	  openmpi-bin \
+	  wget \
+	  libgoogle-glog0v5 \
+      liblmdb0 \
+      libleveldb1v5 \
+      libopencv-core2.4v5 \
+      libopencv-highgui2.4v5
+      
+RUN apt-get install -y ca-certificates
+
+COPY lib/libcaffe2.so /usr/local/lib/libcaffe2.so
+RUN ldconfig
+COPY graphpipe-onnx /
+ENTRYPOINT ["/graphpipe-onnx"]
