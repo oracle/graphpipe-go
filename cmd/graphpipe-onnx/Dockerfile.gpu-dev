@@ -28,12 +28,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	  libopenmpi-dev \
 	  libsnappy-dev \
 	  libprotobuf-dev \
-	  protobuf-compiler
-#	  python-dev \
-#	  python-pip
+	  protobuf-compiler \
+	  cmake \
+	  wget
 
-RUN apt-get install -y --no-install-recommends openmpi-bin openmpi-doc
-
+RUN apt-get update && apt-get install -y --no-install-recommends \
+	  python-dev \
+	  python-pip \
+	  openmpi-bin \
+	  openmpi-doc
 
 RUN git clone --recursive https://github.com/pytorch/pytorch.git && cd pytorch
 WORKDIR /pytorch
@@ -50,8 +53,6 @@ RUN sh -c 'echo deb https://apt.repos.intel.com/mkl all main > /etc/apt/sources.
 RUN apt-get update && apt-get install -y intel-mkl-64bit-2018.3-051
 RUN echo "/opt/intel/compilers_and_libraries_2018.3.222/linux/mkl/lib/intel64_lin/" > /etc/ld.so.conf.d/intel_mkl.conf
 RUN ldconfig
-
-RUN apt-get install -y --no-install-recommends python-dev python-pip
 
 RUN pip install --upgrade pip
 RUN pip install --user setuptools
