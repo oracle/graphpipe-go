@@ -1,7 +1,7 @@
 NAME=graphpipe-onnx
 LIBCAFFE_IMAGE=libcaffe2
 GRAPHPIPE_IMAGE=graphpipe-onnx
-RUN_TYPE?=gpu
+RUN_TYPE?=cpu
 
 sha = $(shell git rev-parse --short HEAD | tr -d ' \n')
 ifeq ($(VERSION),)

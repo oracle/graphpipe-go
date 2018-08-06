@@ -8,16 +8,27 @@ RUN apt update
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TERM=linux
 
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/go-1.10/bin:/go/bin
 ENV RUN_TYPE=cpu
 ENV GOPATH=/go
 
 RUN mkdir -p /go/src
-RUN apt-get update && apt-get install -o Acquire::https::No-Cache=True -o Acquire::http::No-Cache=True --fix-missing -y linux-libc-dev 
-RUN apt-get update && apt-get install -o Acquire::https::No-Cache=True -o Acquire::http::No-Cache=True --fix-missing -y linux-libc-dev libavcodec-dev libavcodec-ffmpeg56
-RUN apt-get update && apt-get install -o Acquire::https::No-Cache=True -o Acquire::http::No-Cache=True --fix-missing -y manpages-dev
-RUN apt-get update && apt-get install -o Acquire::https::No-Cache=True -o Acquire::http::No-Cache=True --fix-missing -y libopenmpi-dev
 
-RUN apt-get update && apt-get install -y --no-install-recommends -o Acquire::https::No-Cache=True -o Acquire::http::No-Cache=True \
+RUN apt-get update && apt-get install --fix-missing -y --no-install-recommends \
+      linux-libc-dev
+
+RUN apt-get update && apt-get install --fix-missing -y --no-install-recommends \
+      libavcodec-dev  \
+      libavcodec-ffmpeg56 \
+      manpages-dev
+
+RUN apt-get update && apt-get install --fix-missing -y --no-install-recommends \
+      libopenmpi-dev \
+      git \
+      curl \
+      golang-1.10-go
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
 	  build-essential \
 	  cmake \
 	  git \
@@ -34,13 +45,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends -o Acquire::htt
 	  cmake \
 	  wget
 
-RUN apt install -y git curl golang-1.10-go
-
 RUN apt-get update && apt-get install -y --no-install-recommends \
 	  python-dev \
-	  python-pip \
-	  openmpi-bin \
-	  openmpi-doc
+	  python-pip
 
 RUN git clone --recursive https://github.com/pytorch/pytorch.git && cd pytorch
 WORKDIR /pytorch
@@ -66,6 +73,3 @@ RUN pip install --user \
       protobuf
 RUN cmake .. -DBLAS="Eigen" -DUSE_NATIVE_ARCH=ON
 RUN make -j 8 install
-
-ENV GOROOT=/usr/lib/go-1.10
-ENV PATH="${GOPATH}/bin:${GOROOT}/bin:${PATH}"
