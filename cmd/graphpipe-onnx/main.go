@@ -212,6 +212,9 @@ func serve(opts options) error {
 	c2c.EngineCount = opts.engineCount
 	for i := 0; i < c2c.EngineCount; i++ {
 		engine_ctx := C.c2_engine_create(C.int(useCuda))
+		if engine_ctx == nil {
+			logrus.Fatalf("Could not create engine\n")
+		}
 		c2c.CEngineCtxs = append(c2c.CEngineCtxs, engine_ctx)
 	}
 

@@ -29,8 +29,8 @@ endif
 $(NAME):
 	go build -ldflags '-X "main.ver=$(VERSION)" -X "main.sha=$(sha)"'
 
-shell-in-docker:
-	nvidia-docker run -it --rm \
+devshell:
+	docker run -it --rm \
 		-v $(PWD)/../../:/go/src/github.com/oracle/graphpipe-go \
 		-w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-onnx \
 		-p 9000:9000 \
@@ -52,7 +52,7 @@ in-docker:
 		$(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
 		/usr/bin/make $(RUN_TYPE) graphpipe-onnx copy-files fix-perms
 
-run-sample-server:
+run-devserver:
 	docker run -it --rm \
 		-v $(PWD)/../../:/go/src/github.com/oracle/graphpipe-go \
 		-w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-onnx \

@@ -258,6 +258,14 @@ int c2_engine_get_dimensions(c2_engine_ctx *ctx, char *name, int64_t *dimensions
 
 c2_engine_ctx* c2_engine_create(int use_cuda) {
 	c2_engine_ctx *ctx = new c2_engine_ctx();
+    if (use_cuda) {
+        int gpu_count;
+        CUDA_ENFORCE(cudaGetDeviceCount(&gpu_count));
+        if (gpu_count <=0) {
+            LOG(ERROR) << "No cuda device found.  Aborting\n";
+            return NULL;
+        }
+    }
     ctx->use_cuda = use_cuda;
     return ctx;
 }
