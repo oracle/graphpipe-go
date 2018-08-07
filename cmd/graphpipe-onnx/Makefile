@@ -61,14 +61,23 @@ devserver:
 	$(DOCKER) run -it --rm \
 		-v $(PWD)/../../:/go/src/github.com/oracle/graphpipe-go \
 		-w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-onnx \
-		-e http_proxy=$(http_proxy) \
 		-p 9000:9000 \
+		-e http_proxy=$(http_proxy) \
 		-e https_proxy=$(https_proxy) \
 		-e GOPATH=/go \
 		-e CHOWN=$$(id -u):$$(id -g) \
 		$(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
 		./graphpipe-onnx --model=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.onnx --value_inputs=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.value_inputs.json --listen=0.0.0.0:9000
 
+runserver:
+	$(DOCKER) run -it --rm \
+		-v $(PWD)/../../:/go/src/github.com/oracle/graphpipe-go \
+		-p 9000:9000 \
+		-e http_proxy=$(http_proxy) \
+		-e https_proxy=$(https_proxy) \
+		-e GOPATH=/go \
+		$(GRAPHPIPE_IMAGE):$(RUN_TYPE) \
+		--model=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.onnx --value_inputs=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.value_inputs.json --listen=0.0.0.0:9000
 
 copy-files-cpu:
 	cp /pytorch/build/lib/libcaffe2.so lib/
@@ -136,4 +145,3 @@ go-deps: govendor
 deps: graphpipe-go-deps go-deps
 
 all: $(NAME)
-

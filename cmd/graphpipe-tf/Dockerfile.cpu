@@ -6,4 +6,5 @@ ADD https://storage.googleapis.com/tensorflow/libtensorflow/libtensorflow-cpu-li
 RUN tar -C ${TF_DIR} -xzf libtensorflow.tar.gz
 ENV LD_LIBRARY_PATH=/usr/local/lib
 COPY graphpipe-tf /
-ENTRYPOINT /graphpipe-tf
+RUN apt-get update && apt-get install -y ca-certificates
+ENTRYPOINT ["/graphpipe-tf"]

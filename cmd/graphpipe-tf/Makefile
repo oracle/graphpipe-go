@@ -1,16 +1,16 @@
 NAME=graphpipe-tf
-TF_TYPE?=gpu
+RUN_TYPE?=cpu
 TF_DIR=/usr/local
 SUDO=sudo
 LIBTF_IMAGE=libtensorflow
-GRAPHPIPETF_IMAGE=graphpipe-tf
+GRAPHPIPE_TF_IMAGE=graphpipe-tf
 DOCKER=docker
 
 ifeq ('$(USE_SUDO)', '0')
 	SUDO=
 endif
 
-ifeq ('$(TF_TYPE)', 'gpu')
+ifeq ('$(RUN_TYPE)', 'gpu')
 	DOCKER=nvidia-docker
 	LD_STUBS=LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs/:$$LD_LIBRARY_PATH
 endif
@@ -45,8 +45,8 @@ in-docker:
 		-e USE_SUDO=0 \
 		-e GOPATH=/go \
 		-e CHOWN=$$(id -u):$$(id -g) \
-		$(LIBTF_IMAGE):$(TF_TYPE)-dev \
-		/usr/bin/make install-govendor install-tensorflow deps $(TF_TYPE) graphpipe-tf fix-perms
+		$(LIBTF_IMAGE):$(RUN_TYPE)-dev \
+		/usr/bin/make install-govendor install-tensorflow deps $(RUN_TYPE) graphpipe-tf fix-perms
 
 cpu:
 	# pass
@@ -59,19 +59,38 @@ gpu:
 
 dev-container:
 	docker build \
-		-f Dockerfile.$(TF_TYPE)-dev \
-		-t $(LIBTF_IMAGE):$(TF_TYPE)-dev \
+		-f Dockerfile.$(RUN_TYPE)-dev \
+		-t $(LIBTF_IMAGE):$(RUN_TYPE)-dev \
+		--build-arg http_proxy=$(http_proxy) \
+		--build-arg https_proxy=$(https_proxy) \
+		.
+devserver:
+	$(DOCKER) run -it --rm \
+        -v $(PWD)/../../:/go/src/github.com/oracle/graphpipe-go \
+        -w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-tf \
+        -p 9000:9000 \
+        -e http_proxy=$(http_proxy) \
+        -e https_proxy=$(https_proxy) \
+        -e GOPATH=/go \
+        -e CHOWN=$$(id -u):$$(id -g) \
+        $(LIBTF_IMAGE):$(RUN_TYPE)-dev \
+        ./graphpipe-tf --model=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.pb --listen=0.0.0.0:9000
+
+runtime-container:
+	docker build \
+		-f Dockerfile.$(RUN_TYPE) \
+		-t $(GRAPHPIPE_TF_IMAGE):$(RUN_TYPE) \
 		--build-arg http_proxy=$(http_proxy) \
 		--build-arg https_proxy=$(https_proxy) \
 		.
 
-runtime-container:
-	docker build \
-		-f Dockerfile.$(TF_TYPE) \
-		-t $(GRAPHPIPETF_IMAGE):$(TF_TYPE) \
-		--build-arg http_proxy=$(http_proxy) \
-		--build-arg https_proxy=$(https_proxy) \
-		.
+runserver:
+	$(DOCKER) run -it --rm \
+        -e http_proxy=$(http_proxy) \
+        -e https_proxy=$(https_proxy) \
+        -p 9000:9000 \
+        $(GRAPHPIPE_TF_IMAGE):$(RUN_TYPE) \
+        --model=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.pb
 
 install-go:
 	apt install golang-go
@@ -94,7 +113,7 @@ go-deps: govendor
 
 install-tensorflow:
 	@if [ ! -e /usr/local/include/tensorflow/c/c_api.h ]; then \
-		curl -L "https://storage.googleapis.com/tensorflow/libtensorflow/libtensorflow-$(TF_TYPE)-linux-x86_64-1.8.0.tar.gz" | \
+		curl -L "https://storage.googleapis.com/tensorflow/libtensorflow/libtensorflow-$(RUN_TYPE)-linux-x86_64-1.8.0.tar.gz" | \
 			$(SUDO) tar -C $(TF_DIR) -xz; \
 	fi
 
