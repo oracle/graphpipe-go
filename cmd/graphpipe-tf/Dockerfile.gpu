@@ -4,4 +4,5 @@ ENV TF_DIR=/usr/local
 ADD https://storage.googleapis.com/tensorflow/libtensorflow/libtensorflow-${TF_TYPE}-linux-x86_64-1.8.0.tar.gz libtensorflow.tar.gz
 RUN tar -C ${TF_DIR} -xzf libtensorflow.tar.gz
 COPY graphpipe-tf /
-ENTRYPOINT /graphpipe-tf
+RUN apt-get update && apt-get install -y ca-certificates
+ENTRYPOINT ["/graphpipe-tf"]
