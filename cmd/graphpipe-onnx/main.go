@@ -52,7 +52,7 @@ type options struct {
 	verbose     bool
 	version     bool
 	cache       bool
-	cuda        bool
+	disableCuda bool
 	valueInputs string
 	initNet     string
 	predictNet  string
@@ -102,8 +102,8 @@ func main() {
 			}
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			if opts.cuda {
-				logrus.Infof("CUDA is enabled")
+			if opts.disableCuda {
+				logrus.Infof("CUDA is disabled")
 			}
 			if opts.version {
 				fmt.Printf("%s\n", version())
@@ -163,7 +163,7 @@ func main() {
 	f.StringVarP(&opts.predictNet, "predict_net", "", "", "predict_net file to load")
 	f.StringVarP(&opts.valueInputs, "value_inputs", "", "", "value_inputs.json for the model")
 	f.BoolVarP(&opts.cache, "cache", "", false, "cache results")
-	f.BoolVarP(&opts.cuda, "cuda", "", false, "Use Cuda")
+	f.BoolVarP(&opts.disableCuda, "disable-cuda", "", false, "Disable Cuda")
 	f.StringVarP(&opts.profile, "profile", "", "", "profile and write profiling output to this file")
 	f.IntVarP(&opts.engineCount, "engine_count", "", 1, "Engine Count")
 
@@ -208,14 +208,14 @@ type c2Context struct {
 func serve(opts options) error {
 	c2c := &c2Context{}
 
-	useCuda := 0
-	if opts.cuda {
-		useCuda = 1
+	tryToUseCuda := 1
+	if opts.disableCuda {
+		tryToUseCuda = 0
 	}
 
 	c2c.EngineCount = opts.engineCount
 	for i := 0; i < c2c.EngineCount; i++ {
-		engine_ctx := C.c2_engine_create(C.int(useCuda))
+		engine_ctx := C.c2_engine_create(C.int(tryToUseCuda))
 		if engine_ctx == nil {
 			logrus.Fatalf("Could not create engine\n")
 		}

@@ -280,12 +280,12 @@ c2_engine_ctx* c2_engine_create(int use_cuda) {
         int gpu_count;
         CUDA_ENFORCE(cudaGetDeviceCount(&gpu_count));
         if (gpu_count <=0) {
-            LOG(ERROR) << "No cuda device found.  Aborting\n";
-            return NULL;
+            LOG(ERROR) << "No cuda device found.  Using cpu backend.\n";
+            use_cuda = 0;
         }
 #else
-        LOG(ERROR) << "No cuda device found.  Aborting\n";
-        return NULL;
+        LOG(ERROR) << "Binary compiled without cuda support.  Using cpu backend.\n";
+        use_cuda = 0;
 #endif
     }
     ctx->use_cuda = use_cuda;
