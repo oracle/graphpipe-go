@@ -154,18 +154,18 @@ func main() {
 		},
 	}
 	f := cmd.Flags()
-	f.StringVarP(&opts.stateDir, "dir", "d", "~/.tureen", "dir for local state")
+	f.StringVarP(&opts.stateDir, "dir", "d", "~/.graphpipe", "directory for local cache state")
 	f.StringVarP(&opts.listen, "listen", "l", "127.0.0.1:9000", "listen string")
-	f.BoolVarP(&opts.verbose, "verbose", "v", false, "verbose output")
+	f.BoolVarP(&opts.verbose, "verbose", "v", false, "enable verbose output")
 	f.BoolVarP(&opts.version, "version", "V", false, "show version")
-	f.StringVarP(&opts.model, "model", "m", "", "model to load")
+	f.StringVarP(&opts.model, "model", "m", "", "ONNX model to load.   Accepts local file or http(s) url.")
 	f.StringVarP(&opts.initNet, "init_net", "", "", "init_net file to load")
-	f.StringVarP(&opts.predictNet, "predict_net", "", "", "predict_net file to load")
-	f.StringVarP(&opts.valueInputs, "value_inputs", "", "", "value_inputs.json for the model")
-	f.BoolVarP(&opts.cache, "cache", "", false, "cache results")
-	f.BoolVarP(&opts.disableCuda, "disable-cuda", "", false, "Disable Cuda")
+	f.StringVarP(&opts.predictNet, "predict_net", "", "", "predict_net file to load.  Accepts local file or http(s) url.")
+	f.StringVarP(&opts.valueInputs, "value_inputs", "", "", "value_inputs.json for the model.  Accepts local file or http(s) url.")
+	f.BoolVarP(&opts.cache, "cache", "", false, "enable results caching")
+	f.BoolVarP(&opts.disableCuda, "disable-cuda", "", false, "disable Cuda")
 	f.StringVarP(&opts.profile, "profile", "", "", "profile and write profiling output to this file")
-	f.IntVarP(&opts.engineCount, "engine_count", "", 1, "Engine Count")
+	f.IntVarP(&opts.engineCount, "engine_count", "", 1, "engine count")
 
 	opts.stateDir = strings.Replace(opts.stateDir, "~", os.Getenv("HOME"), -1)
 
