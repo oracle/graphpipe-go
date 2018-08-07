@@ -27,7 +27,7 @@ import (
 )
 
 // #cgo CXXFLAGS: -DONNX_NAMESPACE=onnx_c2 -D_GNU_SOURCE -D_REENTRANT -D CAFFE2_USE_GFLAGS -D CAFFE2_USE_GOOGLE_GLOG -D NDEBUG -isystem /usr/local/cuda/include -std=c++11 -O2
-// #cgo LDFLAGS: -ldl /usr/local/lib/libcaffe2_gpu.so  /usr/local/lib/libcaffe2.so  /usr/local/cuda/lib64/libcurand.so -lprotobuf -lglog -lgflags  -L/usr/local/cuda/lib64 -lcudart
+// #cgo LDFLAGS: -ldl /usr/local/lib/libcaffe2.so -lprotobuf -lglog -lgflags
 // #include <stdlib.h>
 // #include <c2_api.h>
 import "C"
@@ -52,7 +52,7 @@ type options struct {
 	verbose     bool
 	version     bool
 	cache       bool
-	cuda        bool
+	disableCuda bool
 	valueInputs string
 	initNet     string
 	predictNet  string
@@ -102,6 +102,9 @@ func main() {
 			}
 		},
 		Run: func(cmd *cobra.Command, args []string) {
+			if opts.disableCuda {
+				logrus.Infof("CUDA is disabled")
+			}
 			if opts.version {
 				fmt.Printf("%s\n", version())
 				return
@@ -160,7 +163,7 @@ func main() {
 	f.StringVarP(&opts.predictNet, "predict_net", "", "", "predict_net file to load")
 	f.StringVarP(&opts.valueInputs, "value_inputs", "", "", "value_inputs.json for the model")
 	f.BoolVarP(&opts.cache, "cache", "", false, "cache results")
-	f.BoolVarP(&opts.cuda, "cuda", "", false, "Use Cuda")
+	f.BoolVarP(&opts.disableCuda, "disable-cuda", "", false, "Disable Cuda")
 	f.StringVarP(&opts.profile, "profile", "", "", "profile and write profiling output to this file")
 	f.IntVarP(&opts.engineCount, "engine_count", "", 1, "Engine Count")
 
@@ -182,6 +185,7 @@ func main() {
 	if os.Getenv("GP_CACHE") != "" {
 		val := strings.ToLower(os.Getenv("GP_CACHE"))
 		if val == "1" || val == "true" {
+			logrus.Infof("Caching is enabled")
 			opts.cache = true
 		}
 	}
@@ -201,45 +205,25 @@ type c2Context struct {
 	meta        *graphpipe.NativeMetadataResponse
 }
 
-func readModel(uri string) ([]byte, error) {
-	if strings.HasPrefix(uri, "http://") ||
-		strings.HasPrefix(uri, "https://") {
-		var transport = &http.Transport{
-			Dial: (&net.Dialer{
-				Timeout: 5 * time.Second,
-			}).Dial,
-			TLSHandshakeTimeout: 5 * time.Second,
-		}
-		var client = &http.Client{
-			Timeout:   time.Second * 10,
-			Transport: transport,
-		}
-		response, err := client.Get(uri)
-		if err != nil {
-			logrus.Errorf("Failed to get '%s': %v", uri, err)
-			return nil, err
-		}
-		return ioutil.ReadAll(response.Body)
-	}
-	return ioutil.ReadFile(uri)
-}
-
 func serve(opts options) error {
 	c2c := &c2Context{}
 
-	useCuda := 0
-	if opts.cuda {
-		useCuda = 1
+	tryToUseCuda := 1
+	if opts.disableCuda {
+		tryToUseCuda = 0
 	}
 
 	c2c.EngineCount = opts.engineCount
 	for i := 0; i < c2c.EngineCount; i++ {
-		engine_ctx := C.c2_engine_create(C.int(useCuda))
+		engine_ctx := C.c2_engine_create(C.int(tryToUseCuda))
+		if engine_ctx == nil {
+			logrus.Fatalf("Could not create engine\n")
+		}
 		c2c.CEngineCtxs = append(c2c.CEngineCtxs, engine_ctx)
 	}
 
 	valueInputData := make(map[string]interface{})
-	valueInputJson, err := readModel(opts.valueInputs)
+	valueInputJson, err := loadFile(opts.valueInputs)
 	if err != nil {
 		logrus.Fatalf("Could not load value_input: %v", err)
 	}
@@ -265,7 +249,7 @@ func serve(opts options) error {
 	}
 
 	if opts.model != "" {
-		modelData, err := readModel(opts.model)
+		modelData, err := loadFile(opts.model)
 		if err != nil {
 			logrus.Errorln("Could not read file ", opts.model)
 			return err
@@ -283,13 +267,13 @@ func serve(opts options) error {
 		c2c.modelHash = h.Sum(nil)
 		logrus.Infof("Model hash is '%x'", c2c.modelHash)
 	} else {
-		initData, err := readModel(opts.initNet)
+		initData, err := loadFile(opts.initNet)
 		if err != nil {
 			logrus.Errorln("Could not read init file ", opts.initNet)
 			return err
 		}
 
-		predData, err := readModel(opts.predictNet)
+		predData, err := loadFile(opts.predictNet)
 		if err != nil {
 			logrus.Errorln("Could not read predict file ", opts.predictNet)
 			return err
