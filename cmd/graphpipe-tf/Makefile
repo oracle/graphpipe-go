@@ -48,7 +48,6 @@ in-docker:
 		$(LIBTF_IMAGE):$(RUN_TYPE)-dev \
 		/usr/bin/make install-govendor deps $(RUN_TYPE) copy-files-$(RUN_TYPE) graphpipe-tf fix-perms
 
-
 cpu:
 	# pass
 

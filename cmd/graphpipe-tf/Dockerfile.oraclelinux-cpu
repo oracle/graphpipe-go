@@ -1,8 +1,5 @@
 FROM oraclelinux:7-slim
 RUN yum -y update glibc
-ENV TF_TYPE=cpu
-ENV TF_DIR=/usr/local
-ENV GOPATH=/go
 ENV LD_LIBRARY_PATH=/usr/local/lib
 COPY graphpipe-tf /
 COPY lib/libiomp5.so /usr/local/lib

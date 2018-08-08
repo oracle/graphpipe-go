@@ -1,40 +1,36 @@
 FROM nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04
-RUN apt update
-RUN apt install -y software-properties-common
+RUN apt-get update && apt-get install -y software-properties-common
 RUN add-apt-repository ppa:gophers/archive
 
-RUN apt update
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TERM=linux
-RUN apt install -y git curl golang-1.10-go
 
 ENV LD_LIBRARY_PATH=/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/lib
 ENV PATH=/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/go-1.10/bin:/go/bin
-ENV RUN_TYPE=gpu
+
 ENV GOPATH=/go
 
 RUN mkdir -p /go/src
 
+RUN apt-get install -y git curl golang-1.10-go
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
+	  libopenmpi-dev \
+	  python-pip \
+	  python-dev \
 	  build-essential \
 	  cmake \
-	  git \
 	  libgoogle-glog-dev \
 	  libgtest-dev \
 	  libiomp-dev \
 	  libleveldb-dev \
 	  liblmdb-dev \
 	  libopencv-dev \
-	  libopenmpi-dev \
 	  libsnappy-dev \
 	  libprotobuf-dev \
 	  protobuf-compiler \
 	  cmake \
-	  wget
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-	  python-dev \
-	  python-pip \
+	  wget \
 	  openmpi-bin \
 	  openmpi-doc
 
@@ -62,4 +58,4 @@ RUN pip install --user \
       protobuf
 
 RUN cmake .. -DBLAS="MKL" -DUSE_NATIVE_ARCH=ON -DMKL_INCLUDE_DIR=/usr/local/pkgs/caffe2-cuda9.0-cudnn7-0.8.dev-py36_2018.07.20/include/caffe2
-RUN make -j 8 install
+RUN make -j install
