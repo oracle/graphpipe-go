@@ -11,7 +11,7 @@ Prereqs:
 
 
 ```
-  export TF_TYPE=cpu
+  export RUN_TYPE=cpu
   make deps && make
 
   # or
@@ -28,7 +28,7 @@ just have it supported, and have nvidia-docker).  We have tested against
 CUDA 8 and CUDA 9.
 
 ```
-  export TF_TYPE=gpu
+  export RUN_TYPE=gpu
   make deps && make
 
   # or
