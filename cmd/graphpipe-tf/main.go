@@ -88,12 +88,12 @@ func main() {
 		},
 	}
 	f := cmd.Flags()
-	f.StringVarP(&opts.stateDir, "dir", "d", "~/.graphpipe-tf", "dir for local cache state")
+	f.StringVarP(&opts.stateDir, "dir", "d", "~/.graphpipe", "directory for local cache state")
 	f.StringVarP(&opts.listen, "listen", "l", "127.0.0.1:9000", "listen string")
-	f.StringVarP(&opts.model, "model", "m", "", "tensorflow model to load (accepts local files and unauthenticated http/https urls)")
+	f.StringVarP(&opts.model, "model", "m", "", "tensorflow model to load.  Accepts local file or http(s) url.")
 	f.StringVarP(&opts.inputs, "inputs", "i", "", "comma seprated default inputs")
 	f.StringVarP(&opts.outputs, "outputs", "o", "", "comma separated default outputs")
-	f.BoolVarP(&opts.cache, "cache", "c", false, "cache results")
+	f.BoolVarP(&opts.cache, "cache", "c", false, "enable results vcaching")
 	f = cmd.PersistentFlags()
 	f.BoolVarP(&opts.verbose, "verbose", "v", false, "verbose output")
 	f.BoolVarP(&opts.version, "version", "V", false, "show version")
