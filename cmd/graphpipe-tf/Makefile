@@ -139,16 +139,16 @@ graphpipe-go-deps:
 go-deps: govendor
 	$(GOPATH)/bin/govendor sync -v
 
-#install-tensorflow:
-#	@if [ ! -e /usr/local/include/tensorflow/c/c_api.h ]; then \
-#		curl -L "https://storage.googleapis.com/tensorflow/libtensorflow/libtensorflow-$(RUN_TYPE)-linux-x86_64-1.8.0.tar.gz" | \
-#			$(SUDO) tar -C $(TF_DIR) -xz; \
-#	fi
+install-tensorflow:
+	@if [ ! -e /usr/local/include/tensorflow/c/c_api.h ]; then \
+		curl -L "https://storage.googleapis.com/tensorflow/libtensorflow/libtensorflow-$(RUN_TYPE)-linux-x86_64-1.8.0.tar.gz" | \
+			$(SUDO) tar -C $(TF_DIR) -xz; \
+	fi
 
-#tensorflow:
-#	@if [ ! -e /usr/local/include/tensorflow/c/c_api.h ]; then \
-#		echo "You need tensorflow installed: https://www.tensorflow.org/install/install_go" && exit 1; \
-#	fi
+tensorflow:
+	@if [ ! -e /usr/local/include/tensorflow/c/c_api.h ]; then \
+		echo "You need tensorflow installed: https://www.tensorflow.org/install/install_go" && exit 1; \
+	fi
 
 fix-perms:
 	@if [ -n "$${CHOWN}" ]; then \

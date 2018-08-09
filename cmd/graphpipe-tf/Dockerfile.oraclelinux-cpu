@@ -1,5 +1,4 @@
 FROM oraclelinux:7-slim
-RUN yum -y update glibc
 ENV LD_LIBRARY_PATH=/usr/local/lib
 COPY graphpipe-tf /
 COPY lib/libiomp5.so /usr/local/lib
