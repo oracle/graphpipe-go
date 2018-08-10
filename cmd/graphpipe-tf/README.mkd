@@ -3,38 +3,75 @@
 The headlines are true! You can serve your TF models via graphpipe
 easily using this server.
 
-## Quickstart
+## Development Quickstart
+Because of the relative complexity of system configuration when dealing with machine
+learning libraries, our dev and build system for graphpipe-tf is 100% docker-driven.
 
-Prereqs:
+To compile the graphpipe-tf server, you first need to generate the "dev-container"
+that includes all the software dependencies for your desired configuration.
+
+Our build system can output images in three configurations:
+
+* *cpu* (default) - create an Ubuntu-based build for cpu inference.  In this configuration, the BLAS backend is MKL.
+* *oraclelinux-cpu* - same as cpu, but using oraclelinux as a base image.
+* *gpu* - create an Ubuntu-based build for gpu inference.  If no physical gpu is present, inference falls back to 
+  MKL cpu inference
+
+You can switch between these configurations by setting the *RUN_TYPE* environment variable.
+
+```
+    > export RUN_TYPE=gpu
+```
+
+In order to support streamlined development and deployment, each build configuration
+has 2 containers: one for development, and one for deployment.
+```
+    > make dev-container # creates the base dev container
+    > make in-docker # compiles the server inside the docker image
+    > make runtime-container # compiles the deployment container, and injects build artifacts into this container
+```
+
+Additionally, you can build all three of these at the same time:
+```
+    > make all
+```
+
+During development, it is usually sufficient to run the server from the development image.
+An example invocation of a development server can be invoked like this:
+```
+    > make devserver  # observe the docker command that is output, and tweak it for your own testing
+```
+
+Similarly, you can invoke a test instance of the deployment
+```
+    > make runserver  # observe the docker command that is output, and tweak it for your own testing
+```
+
+And if things seem broken, try dropping into a shell in your dev-container to figure things out:
+
+```
+  make devshell
+```
+
+## Proxies
+If you are behind a proxy, set the *http_proxy* and *https_proxy* environment variables so our build system
+can forward this configuration to docker.
+
+## Running the Server Manually
+If you want to run the server manually, you will need to install some additional dependencies:
+
   - libtensorflow: https://www.tensorflow.org/install/install_go or `make install-tensorflow`
   - govendor: https://github.com/kardianos/govendor or `make install-govendor`
+  - CUDA8+: required for building gpu-capable binaries
 
+If you manage to get these and their recursive deps installed, you should now be able to call make
+with no arguments:
 
 ```
   export RUN_TYPE=cpu
   make deps && make
-
-  # or
-
-  make in-docker  # just do it all in docker
 ```
 
-Should get you a CPU-build, or tell you what dependencies you need
-to do so (see Prereqs above).
-
-For the GPU build the same more or less applies but you need to have
-all the Nvidia CUDA stuff installed and supported on your system (or
-just have it supported, and have nvidia-docker).  We have tested against
-CUDA 8 and CUDA 9.
-
-```
-  export RUN_TYPE=gpu
-  make deps && make
-
-  # or
-
-  make in-docker  # just do it all in docker
-```
 
 ## Running the server
 Before running the server, you first need a tensorflow model to serve.
@@ -77,28 +114,6 @@ Once you have your model, start the server .
 For convenience, the key parameters of the service can be configured with environment variables,
  GP_MODEL, GP_INPUTS, GP_OUTPUTS, and GP_CACHE.
 
-## Building Containers
-
-If you're a developer of graphpipe, you may need to at some point
-build a new dev-container:
-
-```
-  make dev-container
-```
-
-And if you are deploying changes, you may need to make a new runtime
-container:
-
-```
-  make runtime-container
-```
-
-And if things seem broken, try dropping into a shell in your dev
-container and figure things out:
-
-```
-  make shell
-```
 
 ## Troubleshooting
 
