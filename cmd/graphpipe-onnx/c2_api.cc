@@ -54,11 +54,6 @@ int _get_itemsize(c2_engine_ctx *ctx, char *name) {
 }
 
 
-int c2_engine_get_itemsize(c2_engine_ctx *ctx, char *name) {
-    return _get_itemsize(ctx, name);
-}
-
-
 int _get_dtype(c2_engine_ctx *ctx, char *name) {
     std::map<std::string, int64_t>::iterator it;
     it = ctx->dtypes.find(name);
@@ -79,11 +74,23 @@ int c2_engine_get_dtype(c2_engine_ctx *ctx, char *name) {
 }
 
 
+int c2_engine_get_rowsize(c2_engine_ctx *ctx, char *name) {
+    return _get_rowsize(ctx, name);
+}
+
+
+int c2_engine_get_itemsize(c2_engine_ctx *ctx, char *name) {
+    return _get_itemsize(ctx, name);
+}
+
+
 void _do_tensor_copy(c2_engine_ctx *ctx, caffe2::Blob *blob, caffe2::TensorCPU &input) {
     if (ctx->use_cuda) {
 #ifdef GP_ENABLE_CUDA
         auto t = blob->GetMutable<caffe2::TensorCUDA>();
         t->CopyFrom(input);
+#else
+        LOG(ERROR) << "No cuda device found.  Tensor copy failed.\n";
 #endif
     }
     else {
@@ -92,65 +99,69 @@ void _do_tensor_copy(c2_engine_ctx *ctx, caffe2::Blob *blob, caffe2::TensorCPU &
     }
 }
 
-int c2_set_input_batch(c2_engine_ctx *ctx, char *name, void *input, int byte_count) {
-    int itemcount = byte_count / _get_itemsize(ctx, name);
+int c2_set_input_batch(c2_engine_ctx *ctx, char *name, void *input, int item_count) {
     caffe2::Predictor::TensorMap::iterator it;
     auto* blob = ctx->workspace.GetBlob(name);
-    if (blob) {
+    if (!blob) {
+        LOG(ERROR) << "Blob not found for input name:" << name << "\n";
+        return -1;
+    }
+    std::map<std::string, std::vector<int64_t>>::iterator jt;
+    jt = ctx->dims.find(name);
+    if (jt == ctx->dims.end()) {
+        LOG(ERROR) << "Dims not found for input name:" << name << "\n";
+        return -1;
+    }
 
-        std::map<std::string, std::vector<int64_t>>::iterator jt;
-        jt = ctx->dims.find(name);
-        if (jt == ctx->dims.end()) {
-            assert(0);
-            return -1;
-        }
+    auto dims = jt->second;
+    int itemsize = _get_itemsize(ctx, name);
+    int rowsize = _get_rowsize(ctx, name);
+    if (item_count % rowsize != 0) {
+        LOG(ERROR) << "item_count % rowsize != 0 for input name:" << name << "\n";
+        return -1;
+    }
 
-        auto dims = jt->second;
-        int itemsize = _get_itemsize(ctx, name);
-        int rowsize = _get_rowsize(ctx, name);
-        if (itemcount % rowsize != 0) {
-            assert(0);
-            return -1;
-        }
-
-        switch (_get_dtype(ctx, name)) {
-#define COPY_INPUT(t) { t *arr = (t *) input; std::vector<t> batch_data {arr, arr + itemcount}; caffe2::TensorCPU input({(itemcount/rowsize), dims[1], dims[2], dims[3]}, batch_data, NULL); _do_tensor_copy(ctx, blob, input); }
-            case caffe2::TensorProto_DataType_FLOAT:
-                COPY_INPUT(float);
-                break;
+    int dtype = _get_dtype(ctx, name);
+    switch (dtype) {
+#define COPY_INPUT(t) { t *arr = (t *) input; std::vector<t> batch_data {arr, arr + item_count}; caffe2::TensorCPU input({(item_count/rowsize), dims[1], dims[2], dims[3]}, batch_data, NULL); _do_tensor_copy(ctx, blob, input); }
+        case caffe2::TensorProto_DataType_FLOAT:
+            COPY_INPUT(float);
+            break;
 #ifdef GP_ENABLE_CUDA
-            case caffe2::TensorProto_DataType_FLOAT16:
-                COPY_INPUT(caffe2::float16);
-                break;
+        case caffe2::TensorProto_DataType_FLOAT16:
+            COPY_INPUT(caffe2::float16);
+            break;
 #endif
-            case caffe2::TensorProto_DataType_INT32:
-                COPY_INPUT(int32_t);
-                break;
-            case caffe2::TensorProto_DataType_BYTE:
-                COPY_INPUT(unsigned char);
-                break;
-            case caffe2::TensorProto_DataType_UINT8:
-                COPY_INPUT(uint8_t);
-                break;
-            case caffe2::TensorProto_DataType_INT8:
-                COPY_INPUT(int8_t);
-                break;
-            case caffe2::TensorProto_DataType_UINT16:
-                COPY_INPUT(uint16_t);
-                break;
-            case caffe2::TensorProto_DataType_INT16:
-                COPY_INPUT(int16_t);
-                break;
-            case caffe2::TensorProto_DataType_INT64:
-                COPY_INPUT(int64_t);
-                break;
-            case caffe2::TensorProto_DataType_DOUBLE:
-                COPY_INPUT(double);
-                break;
-            default:
-                return -1;
-        }
-
+        case caffe2::TensorProto_DataType_INT32:
+            COPY_INPUT(int32_t);
+            break;
+        case caffe2::TensorProto_DataType_BYTE:
+            COPY_INPUT(unsigned char);
+            break;
+        case caffe2::TensorProto_DataType_UINT8:
+            COPY_INPUT(uint8_t);
+            break;
+        case caffe2::TensorProto_DataType_INT8:
+            COPY_INPUT(int8_t);
+            break;
+        case caffe2::TensorProto_DataType_UINT16:
+            COPY_INPUT(uint16_t);
+            break;
+        case caffe2::TensorProto_DataType_INT16:
+            COPY_INPUT(int16_t);
+            break;
+        case caffe2::TensorProto_DataType_INT64:
+            COPY_INPUT(int64_t);
+            break;
+        case caffe2::TensorProto_DataType_DOUBLE:
+            COPY_INPUT(double);
+            break;
+        case caffe2::TensorProto_DataType_STRING:
+            LOG(ERROR) << "Strings are not supported as input types (yet): " << it->second << "\n";
+            return -1;
+        default:
+            LOG(ERROR) << "Unsupported input dtype: " << dtype << " for input " << it->second << "\n";
+            return -1;
     }
     return 0;
 }
@@ -184,9 +195,15 @@ const char *c2_engine_get_output_name(c2_engine_ctx * ctx, int i) {
 int c2_engine_get_output_size(c2_engine_ctx *ctx, int i) {
     std::map<int, std::string>::iterator it;
     it = ctx->outputs.find(i);
-    assert(it != ctx->outputs.end());
+    if (it == ctx->outputs.end()) {
+        LOG(ERROR) << "Output not found at index: " << i << "\n";
+        return -1;
+    }
     auto* blob = ctx->workspace.GetBlob(it->second);
-    assert(blob);
+    if (!blob) {
+        LOG(ERROR) << "Blob not found: " << it->second << "\n";
+        return -1;
+    }
 
     if (ctx->use_cuda) {
 #ifdef GP_ENABLE_CUDA
@@ -213,28 +230,38 @@ int c2_engine_get_output(c2_engine_ctx *ctx, int i, void *output) {
         return -1;
     }
     auto* blob = ctx->workspace.GetBlob(it->second);
-    assert(blob);
-
-    const void *d;
-    size_t size;
-    if (ctx->use_cuda) {
-#ifdef GP_ENABLE_CUDA
-        auto t = caffe2::TensorCPU(blob->Get<caffe2::TensorCUDA>());
-        size = t.size() * t.itemsize();
-        d = t.raw_data();
-        memcpy(output, d, size);
-#else
+    if (!blob) {
+        LOG(ERROR) << "Blob not found: " << it->second << "\n";
         return -1;
-#endif
-    }
-    else {
-        auto &t = blob->Get<caffe2::TensorCPU>();
-        size = t.size() * t.itemsize();
-        d = t.raw_data();
-        memcpy(output, d, size);
     }
 
-    return size;
+    int dtype = _get_dtype(ctx, it->second);
+
+    if (dtype == caffe2::TensorProto_DataType_STRING) {
+        LOG(ERROR) << "Strings are not supported as output types (yet): " << it->second << "\n";
+        return -1;
+    } else {
+        const void *d;
+        size_t size;
+        if (ctx->use_cuda) {
+#ifdef GP_ENABLE_CUDA
+            auto t = caffe2::TensorCPU(blob->Get<caffe2::TensorCUDA>());
+            size = t.size() * t.itemsize();
+            d = t.raw_data();
+            memcpy(output, d, size);
+#else
+            LOG(ERROR) << "Invalid cuda call to c2_engine_get_output: " << it->second << "\n";
+            return -1;
+#endif
+        }
+        else {
+            auto &t = blob->Get<caffe2::TensorCPU>();
+            size = t.size() * t.itemsize();
+            d = t.raw_data();
+            memcpy(output, d, size);
+        }
+        return size;
+    }
 }
 
 
@@ -412,8 +439,11 @@ int _initialize(c2_engine_ctx *ctx) {
             case caffe2::TensorProto_DataType_DOUBLE:
                 SETUP_INPUT(double)
                 break;
-                
+            case caffe2::TensorProto_DataType_STRING:
+                LOG(ERROR) << "Strings are not supported as input types (yet): " << it->second << "\n";
+                return -1;
             default:
+                LOG(ERROR) << "Unsupported input dtype: " << dtype << " for input " << it->second << "\n";
                 return -1;
         }
         ctx->rowsizes[it->second] = size;
@@ -427,12 +457,17 @@ int _initialize(c2_engine_ctx *ctx) {
         if (ctx->use_cuda) {
 #ifdef GP_ENABLE_CUDA
             auto data = caffe2::TensorCPU(blob->Get<caffe2::TensorCUDA>());
-            std::vector<int64_t> tmp;
+            std::vector<int64_t> dims;
             for (int j=0;j<data.dims().size(); j++) {
-                tmp.push_back(data.dims()[j]);
+                dims.push_back(data.dims()[j]);
             }
-            ctx->dims[it->second] = tmp;
+            size_t size = 1;
+            for (int i=1;i<dims.size();i++) {
+              size *= dims[i];
+            }
+            ctx->dims[it->second] = dims;
             ctx->itemsizes[it->second] = data.itemsize();
+            ctx->rowsizes[it->second] = size;
             ctx->dtypes[it->second] = caffe2::TypeMetaToDataType(data.meta());
 #else
             return -1;
@@ -440,12 +475,17 @@ int _initialize(c2_engine_ctx *ctx) {
         }
         else {
             auto &data = blob->Get<caffe2::TensorCPU>();
-            std::vector<int64_t> tmp;
+            std::vector<int64_t> dims;
             for (int j=0;j<data.dims().size(); j++) {
-                tmp.push_back(data.dims()[j]);
+                dims.push_back(data.dims()[j]);
             }
-            ctx->dims[it->second] = tmp;
+            size_t size = 1;
+            for (int i=1;i<dims.size();i++) {
+              size *= dims[i];
+            }
+            ctx->dims[it->second] = dims;
             ctx->itemsizes[it->second] = data.itemsize();
+            ctx->rowsizes[it->second] = size;
             ctx->dtypes[it->second] = caffe2::TypeMetaToDataType(data.meta());
         }
 
@@ -494,4 +534,3 @@ int c2_engine_initialize_onnx(c2_engine_ctx *ctx, char *model_data, size_t model
     ctx->pred_net = ctx->onnx_backend->pred_net();
     return _initialize(ctx); 
 }
-

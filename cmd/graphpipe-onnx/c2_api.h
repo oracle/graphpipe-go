@@ -30,6 +30,7 @@ int c2_engine_get_output_size(c2_engine_ctx *ctx, int i);
 
 int c2_engine_get_dtype(c2_engine_ctx *ctx, char *name);
 int c2_engine_get_itemsize(c2_engine_ctx *ctx, char *name);
+int c2_engine_get_rowsize(c2_engine_ctx *ctx, char *name);
 
 int c2_engine_get_output_index(c2_engine_ctx *ctx, char *name);
 
