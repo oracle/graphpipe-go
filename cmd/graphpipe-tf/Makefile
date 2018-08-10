@@ -46,16 +46,41 @@ in-docker:
 		-e GOPATH=/go \
 		-e CHOWN=$$(id -u):$$(id -g) \
 		$(LIBTF_IMAGE):$(RUN_TYPE)-dev \
-		/usr/bin/make install-govendor install-tensorflow deps $(RUN_TYPE) graphpipe-tf fix-perms
+		/usr/bin/make install-govendor deps $(RUN_TYPE) copy-files-$(RUN_TYPE) graphpipe-tf fix-perms
 
 cpu:
 	# pass
 
+copy-files-cpu:
+	mkdir -p lib
+	cp /root/.cache/bazel/_bazel_root/*/external/mkl_linux/lib/* lib/
+	cp /usr/local/lib/libtensorflow* lib/
+
 oraclelinux-cpu:
 	# pass
 
+copy-files-oraclelinux-cpu:
+	mkdir -p lib
+	cp /root/.cache/bazel/_bazel_root/*/external/mkl_linux/lib/* lib/
+	cp /usr/local/lib/libtensorflow* lib/
+
 gpu:
 	ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/libcuda.so.1
+
+copy-files-gpu:
+	# pass
+
+devshell:
+	docker run -it --rm \
+		-v $(PWD)/../../:/go/src/github.com/oracle/graphpipe-go \
+        -w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-go \
+        -p 9000:9000 \
+        -e http_proxy=$(http_proxy) \
+        -e https_proxy=$(https_proxy) \
+        -e GOPATH=/go \
+        -e CHOWN=$$(id -u):$$(id -g) \
+        $(LIBTF_IMAGE):$(RUN_TYPE)-dev \
+        /bin/bash
 
 dev-container:
 	docker build \
@@ -64,17 +89,19 @@ dev-container:
 		--build-arg http_proxy=$(http_proxy) \
 		--build-arg https_proxy=$(https_proxy) \
 		.
+
 devserver:
 	$(DOCKER) run -it --rm \
         -v $(PWD)/../../:/go/src/github.com/oracle/graphpipe-go \
         -w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-tf \
-        -p 9000:9000 \
         -e http_proxy=$(http_proxy) \
         -e https_proxy=$(https_proxy) \
+        -p 9000:9000 \
         -e GOPATH=/go \
         -e CHOWN=$$(id -u):$$(id -g) \
         $(LIBTF_IMAGE):$(RUN_TYPE)-dev \
-        ./graphpipe-tf --model=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.pb --listen=0.0.0.0:9000
+        ./graphpipe-tf --model=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.pb \
+		--listen=0.0.0.0:9000
 
 runtime-container:
 	docker build \
@@ -90,7 +117,8 @@ runserver:
         -e https_proxy=$(https_proxy) \
         -p 9000:9000 \
         $(GRAPHPIPE_TF_IMAGE):$(RUN_TYPE) \
-        --model=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.pb
+        --model=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.pb \
+		--listen=0.0.0.0:9000
 
 install-go:
 	apt install golang-go
@@ -124,7 +152,7 @@ tensorflow:
 
 fix-perms:
 	@if [ -n "$${CHOWN}" ]; then \
-		chown -R $${CHOWN} vendor $(NAME) ../../vendor; \
+		chown -R $${CHOWN} lib vendor $(NAME) ../../vendor; \
 	fi
 
 PROTOC=protoc
@@ -143,6 +171,6 @@ protobuf:
 	PATH=$(GOPATH)/bin:$(PATH) $(PROTOC) -I$(TF)/ $(PROTOS) --gogotf_out=internal/
 	sed -i 's;github.com/tensorflow;github.com/oracle/graphpipe-go/cmd/graphpipe-tf/internal/github.com/tensorflow;g' internal/github.com/tensorflow/tensorflow/tensorflow/go/core/protobuf/*.pb.go
 
-deps: graphpipe-go-deps go-deps tensorflow
+deps: graphpipe-go-deps go-deps
 
 all: $(NAME)

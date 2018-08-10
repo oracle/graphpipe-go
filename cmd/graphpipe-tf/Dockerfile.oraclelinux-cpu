@@ -1,11 +1,7 @@
 FROM oraclelinux:7-slim
-RUN yum install -y tar gzip \
-    && rm -rf /var/cache/yum/*
-ENV TF_TYPE=cpu
-ENV TF_DIR=/usr/local
-ENV GOPATH=/go
-ADD https://storage.googleapis.com/tensorflow/libtensorflow/libtensorflow-cpu-linux-x86_64-1.8.0.tar.gz libtensorflow.tar.gz
-RUN tar -C ${TF_DIR} -xzf libtensorflow.tar.gz
 ENV LD_LIBRARY_PATH=/usr/local/lib
 COPY graphpipe-tf /
-ENTRYPOINT /graphpipe-tf
+COPY lib/libiomp5.so /usr/local/lib
+COPY lib/libmklml_intel.so /usr/local/lib
+COPY lib/libtensorflow.so /usr/local/lib
+ENTRYPOINT ["/graphpipe-tf"]

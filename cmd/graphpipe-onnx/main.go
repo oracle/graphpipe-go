@@ -1,7 +1,6 @@
 package main
 
 import (
-	//  "bytes"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -20,13 +19,11 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/spf13/cobra"
-	//graphpipe "github.com/oracle/graphpipe-go"
 	graphpipe "github.com/oracle/graphpipe-go"
 	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
-	//	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
 )
 
-// #cgo CXXFLAGS: -DONNX_NAMESPACE=onnx_c2 -D_GNU_SOURCE -D_REENTRANT -D CAFFE2_USE_GFLAGS -D CAFFE2_USE_GOOGLE_GLOG -D NDEBUG -isystem /usr/local/cuda/include -std=c++11 -O2
+// #cgo CXXFLAGS: -DONNX_NAMESPACE=onnx_c2 -D_GNU_SOURCE -D_REENTRANT -D CAFFE2_USE_GFLAGS -D CAFFE2_USE_GOOGLE_GLOG -D NDEBUG -I /usr/local/cuda/include -std=c++11 -O2
 // #cgo LDFLAGS: -ldl /usr/local/lib/libcaffe2.so -lprotobuf -lglog -lgflags
 // #include <stdlib.h>
 // #include <c2_api.h>

@@ -52,10 +52,11 @@ in-docker:
 		-e https_proxy=$(https_proxy) \
 		-e "CGO_LDFLAGS=$(CGO_LDFLAGS)" \
 		-e "CGO_CXXFLAGS=$(CGO_CXXFLAGS)" \
+		-e "CGO_LDFLAGS_ALLOW=/usr/local/lib/libcaffe2.so" \
 		-e GOPATH=/go \
 		-e CHOWN=$$(id -u):$$(id -g) \
 		$(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
-		/usr/bin/make $(RUN_TYPE) graphpipe-onnx copy-files-$(RUN_TYPE) fix-perms
+		/usr/bin/make $(RUN_TYPE) install-govendor deps graphpipe-onnx copy-files-$(RUN_TYPE) fix-perms
 
 devserver:
 	$(DOCKER) run -it --rm \
@@ -80,11 +81,17 @@ runserver:
 		--model=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.onnx --value_inputs=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.value_inputs.json --listen=0.0.0.0:9000
 
 copy-files-cpu:
+	mkdir -p lib
 	cp /pytorch/build/lib/libcaffe2.so lib/
 
 copy-files-gpu:
+	mkdir -p lib
 	cp /pytorch/build/lib/libcaffe2.so lib/
 	cp /pytorch/build/lib/libcaffe2_gpu.so lib/
+
+copy-files-oraclelinux-cpu:
+	mkdir -p lib
+	cp /pytorch/build/lib/libcaffe2.so lib/
 
 fix-perms:
 	@if [ -n "$${CHOWN}" ]; then \

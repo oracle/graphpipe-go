@@ -1,12 +1,12 @@
 FROM nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04
 ENV LD_LIBRARY_PATH=/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/lib
-ENV PATH=/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/go-1.10/bin:/go/bin
-ENV RUN_TYPE=gpu
+ENV PATH=/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
-	  libgtest-dev \
-	  openmpi-bin \
-	  wget \
-	  libgoogle-glog0v5 \
+      libgtest-dev \
+      openmpi-bin \
+      wget \
+      libgoogle-glog0v5 \
       liblmdb0 \
       libleveldb1v5 \
       libopencv-core2.4v5 \

@@ -1,9 +1,23 @@
 FROM oraclelinux:7-slim
-# tar and gzip are not included in slim
+
 RUN yum install --enablerepo ol7_optional_latest -y tar gzip make git curl golang \
   && rm -rf /var/cache/yum/*
-ENV TF_TYPE=cpu
-ENV TF_DIR=/usr/local
+
+RUN curl https://copr.fedorainfracloud.org/coprs/vbatts/bazel/repo/epel-7/vbatts-bazel-epel-7.repo > /etc/yum.repos.d/vbatts-bazel-epel-7.repo 
+RUN yum install -y bazel
 RUN go get -u github.com/kardianos/govendor
-ADD https://storage.googleapis.com/tensorflow/libtensorflow/libtensorflow-${TF_TYPE}-linux-x86_64-1.8.0.tar.gz libtensorflow.tar.gz
-RUN tar -C /usr/local -xzf libtensorflow.tar.gz
+
+RUN git clone https://github.com/tensorflow/tensorflow /tensorflow
+WORKDIR /tensorflow
+RUN git checkout v1.8.0
+
+RUN yum install --enablerepo ol7_optional_latest -y which patch && rm -rf /var/cache/yum/*
+RUN yum install --enablerepo ol7_optional_latest -y gcc-c++ && rm -rf /var/cache/yum/*
+
+RUN yes "" | ./configure
+RUN bazel build --config=mkl --config=opt --config=monolithic //tensorflow:libtensorflow.so
+RUN cp bazel-bin/tensorflow/libtensorflow.so /usr/local/lib
+RUN cp /root/.cache/bazel/_bazel_root/*/external/mkl_linux/lib/* /usr/local/lib
+RUN ldconfig
+RUN ln -s /tensorflow/tensorflow /usr/local/include/tensorflow
+

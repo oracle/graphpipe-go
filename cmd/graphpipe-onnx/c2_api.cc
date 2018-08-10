@@ -278,7 +278,8 @@ c2_engine_ctx* c2_engine_create(int use_cuda) {
     if (use_cuda) {
 #ifdef GP_ENABLE_CUDA
         int gpu_count;
-        CUDA_ENFORCE(cudaGetDeviceCount(&gpu_count));
+        cudaGetDeviceCount(&gpu_count);
+        LOG(INFO) << "Cuda device count : " << gpu_count << "\n";
         if (gpu_count <=0) {
             LOG(ERROR) << "No cuda device found.  Using cpu backend.\n";
             use_cuda = 0;
