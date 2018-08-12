@@ -346,6 +346,7 @@ int _initialize(c2_engine_ctx *ctx) {
             ctx->init_net.mutable_op(i)->mutable_device_option()->set_device_type(caffe2::DeviceType::CUDA);
         }
 #else
+        LOG(ERROR) << "Cuda is not be enabled in this configuration.  Aborting.\n";
         return -1;
 #endif
     }
@@ -379,7 +380,6 @@ int _initialize(c2_engine_ctx *ctx) {
     }
 
     CAFFE_ENFORCE(ctx->workspace.CreateNet(ctx->pred_net));
-
 
     std::map<int, std::string>::iterator it;
     for (it=ctx->inputs.begin(); it != ctx->inputs.end(); it++) {
@@ -470,6 +470,7 @@ int _initialize(c2_engine_ctx *ctx) {
             ctx->rowsizes[it->second] = size;
             ctx->dtypes[it->second] = caffe2::TypeMetaToDataType(data.meta());
 #else
+            LOG(ERROR) << "Cuda is not enabled in this configuration.  Aborting.\n";
             return -1;
 #endif
         }

@@ -29,22 +29,15 @@ WORKDIR /pytorch/build
 
 RUN yum install --enablerepo ol7_developer_EPEL -y \
     cmake3 \
-    python-pip \
-    python-devel \
     gcc-c++ \
     gflags-devel \
     glog-devel
 
 RUN echo "/opt/intel/compilers_and_libraries_2018.2.199/linux/mkl/lib/intel64_lin/" > /etc/ld.so.conf.d/intel_mkl.conf
 RUN ldconfig
-RUN pip install --upgrade pip
-RUN pip install --user setuptools
-RUN pip install --user \
-      future \
-      numpy \
-      protobuf
 
-RUN cmake3 .. -DBLAS="MKL" -DUSE_NATIVE_ARCH=ON
+RUN cmake3 .. -DBLAS="MKL" -DUSE_NATIVE_ARCH=ON -DBUILD_PYTHON=OFF
 RUN make -j install
 RUN ldconfig
 
+ENV LD_LIBRARY_PATH=/opt/intel/compilers_and_libraries_2018.2.199/linux/mkl/lib/intel64_lin/:/usr/local/lib:/usr/lib64/:/opt/intel/compilers_and_libraries_2018.2.199/linux/mkl/lib/intel64_lin/

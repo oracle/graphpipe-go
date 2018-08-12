@@ -52,7 +52,7 @@ in-docker:
 		-e https_proxy=$(https_proxy) \
 		-e "CGO_LDFLAGS=$(CGO_LDFLAGS)" \
 		-e "CGO_CXXFLAGS=$(CGO_CXXFLAGS)" \
-		-e "CGO_LDFLAGS_ALLOW=/usr/local/lib/libcaffe2.so" \
+		-e "CGO_LDFLAGS_ALLOW=.*" \
 		-e GOPATH=/go \
 		-e CHOWN=$$(id -u):$$(id -g) \
 		$(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
