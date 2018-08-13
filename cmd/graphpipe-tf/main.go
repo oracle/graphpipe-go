@@ -41,7 +41,7 @@ type options struct {
 	verbose  bool
 	version  bool
 	cache    bool
-	stateDir string
+	cacheDir string
 	listen   string
 	model    string
 	inputs   string
@@ -88,17 +88,17 @@ func main() {
 		},
 	}
 	f := cmd.Flags()
-	f.StringVarP(&opts.stateDir, "dir", "d", "~/.graphpipe", "directory for local cache state")
+	f.StringVarP(&opts.cacheDir, "cache-dir", "d", "~/.graphpipe", "directory for local cache state")
 	f.StringVarP(&opts.listen, "listen", "l", "127.0.0.1:9000", "listen string")
 	f.StringVarP(&opts.model, "model", "m", "", "tensorflow model to load.  Accepts local file or http(s) url.")
 	f.StringVarP(&opts.inputs, "inputs", "i", "", "comma seprated default inputs")
 	f.StringVarP(&opts.outputs, "outputs", "o", "", "comma separated default outputs")
-	f.BoolVarP(&opts.cache, "cache", "c", false, "enable results vcaching")
+	f.BoolVarP(&opts.cache, "cache", "c", false, "enable results caching")
 	f = cmd.PersistentFlags()
 	f.BoolVarP(&opts.verbose, "verbose", "v", false, "verbose output")
 	f.BoolVarP(&opts.version, "version", "V", false, "show version")
 
-	opts.stateDir = strings.Replace(opts.stateDir, "~", os.Getenv("HOME"), -1)
+	opts.cacheDir = strings.Replace(opts.cacheDir, "~", os.Getenv("HOME"), -1)
 	if opts.model == "" {
 		opts.model = os.Getenv("GP_MODEL")
 	}
@@ -288,8 +288,8 @@ func graphContainsNode(g tfproto.GraphDef, name string) bool {
 }
 
 func serve(opts options) error {
-	if err := os.MkdirAll(opts.stateDir, 0700); err != nil {
-		logrus.Errorf("Could not make state dir '%s': %v", opts.stateDir, err)
+	if err := os.MkdirAll(opts.cacheDir, 0700); err != nil {
+		logrus.Errorf("Could not make state dir '%s': %v", opts.cacheDir, err)
 		return err
 	}
 
@@ -317,7 +317,7 @@ func serve(opts options) error {
 
 	cachePath := ""
 	if opts.cache {
-		cachePath = filepath.Join(opts.stateDir, fmt.Sprintf("%x.db", c.modelHash))
+		cachePath = filepath.Join(opts.cacheDir, fmt.Sprintf("%x.db", c.modelHash))
 	}
 
 	c.meta = initializeMetadata(opts, c)

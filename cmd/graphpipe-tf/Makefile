@@ -73,7 +73,7 @@ copy-files-gpu:
 devshell:
 	docker run -it --rm \
 		-v $(PWD)/../../:/go/src/github.com/oracle/graphpipe-go \
-        -w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-go \
+        -w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-tf \
         -p 9000:9000 \
         -e http_proxy=$(http_proxy) \
         -e https_proxy=$(https_proxy) \
