@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime/pprof"
+	"strconv"
 	"strings"
-	"sync"
 	"time"
 	"unsafe"
 
@@ -118,12 +118,16 @@ func main() {
 					return
 				}
 			}
+			if opts.engineCount < 0 || opts.engineCount > 32 {
+				logrus.Errorf("--engine_count must be >= 1 && <=32")
+				cmdExitCode = 1
+				return
+			}
 			if opts.valueInputs == "" {
 				logrus.Errorf("--value_inputs or env(\"GP_VALUE_INPUTS\") must be set")
 				cmdExitCode = 1
 				return
 			}
-
 			if opts.profile != "" {
 				f, err := os.Create(opts.profile)
 				if err != nil {
@@ -186,20 +190,34 @@ func main() {
 			opts.cache = true
 		}
 	}
+
+	if os.Getenv("GP_ENGINE_COUNT") != "" {
+		count, err := strconv.Atoi(os.Getenv("GP_ENGINE_COUNT"))
+		if err != nil {
+			logrus.Errorf("Could not parse GP_ENGINE_COUNT")
+			os.Exit(1)
+		}
+		opts.engineCount = count
+	}
+
+	if os.Getenv("MKL_NUM_THREADS") == "" {
+		logrus.Infof("Setting MKL_NUM_THREADS=4.  You can override this variable in your environment.")
+		os.Setenv("MKL_NUM_THREADS", "4")
+	}
 	cmd.Execute()
 	os.Exit(cmdExitCode)
 }
 
 type c2Context struct {
-	Mutex       sync.Mutex
-	EngineCount int
-	CEngineCtxs []*C.c2_engine_ctx
-	InputDims   map[string][]int64
-	OutputDims  map[string][]int64
-	Inputs      []string
-	Outputs     []string
-	modelHash   []byte
-	meta        *graphpipe.NativeMetadataResponse
+	EngineCount    int
+	CEngineCtxs    []*C.c2_engine_ctx
+	InputDims      map[string][]int64
+	OutputDims     map[string][]int64
+	Inputs         []string
+	Outputs        []string
+	modelHash      []byte
+	meta           *graphpipe.NativeMetadataResponse
+	engineChannels chan *C.c2_engine_ctx
 }
 
 func serve(opts options) error {
@@ -211,12 +229,14 @@ func serve(opts options) error {
 	}
 
 	c2c.EngineCount = opts.engineCount
+	c2c.engineChannels = make(chan *C.c2_engine_ctx, c2c.EngineCount)
 	for i := 0; i < c2c.EngineCount; i++ {
 		engine_ctx := C.c2_engine_create(C.int(tryToUseCuda))
 		if engine_ctx == nil {
 			logrus.Fatalf("Could not create engine\n")
 		}
 		c2c.CEngineCtxs = append(c2c.CEngineCtxs, engine_ctx)
+		c2c.engineChannels <- engine_ctx
 	}
 
 	valueInputData := make(map[string]interface{})
@@ -410,32 +430,10 @@ var ctype2gptype = []uint8{
 }
 
 func (c2c *c2Context) apply(requestContext *graphpipe.RequestContext, config string, inputs map[string]*graphpipe.NativeTensor, outputNames []string) ([]*graphpipe.NativeTensor, error) {
-	var engine_ctx *C.c2_engine_ctx
-	if c2c.EngineCount == 1 {
-		c2c.Mutex.Lock()
-		engine_ctx = c2c.CEngineCtxs[0]
-		requestContext.CleanupFunc = func() {
-			c2c.Mutex.Unlock()
-		}
-	} else {
-		for {
-			c2c.Mutex.Lock()
-			if len(c2c.CEngineCtxs) > 0 {
-				engine_ctx = c2c.CEngineCtxs[0]
-				c2c.CEngineCtxs = c2c.CEngineCtxs[1:]
-				c2c.Mutex.Unlock()
-				break
-			}
-			c2c.Mutex.Unlock()
-			time.Sleep(time.Second / 2000)
-		}
-
-		requestContext.CleanupFunc = func() {
-			c2c.Mutex.Lock()
-			c2c.CEngineCtxs = append(c2c.CEngineCtxs, engine_ctx)
-			c2c.Mutex.Unlock()
-		}
-	}
+	engine_ctx := <-c2c.engineChannels
+	defer func() {
+		c2c.engineChannels <- engine_ctx
+	}()
 
 	outputNts := make([]*graphpipe.NativeTensor, len(outputNames))
 	for name, input := range inputs {
