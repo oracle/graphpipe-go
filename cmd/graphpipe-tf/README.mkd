@@ -7,9 +7,6 @@ easily using this server.
 Because of the relative complexity of system configuration when dealing with machine
 learning libraries, our dev and build system for graphpipe-tf is 100% docker-driven.
 
-To compile the graphpipe-tf server, you first need to generate the "dev-container"
-that includes all the software dependencies for your desired configuration.
-
 Our build system can output images in three configurations:
 
 * *cpu* (default) - create an Ubuntu-based build for cpu inference.  In this configuration, the BLAS backend is MKL.
@@ -31,7 +28,7 @@ has 2 containers: one for development, and one for deployment.
     > make runtime-container # compiles the deployment container, and injects build artifacts into this container
 ```
 
-Additionally, you can build all three of these at the same time:
+Additionally, you can build all three of these steps at the same time:
 ```
     > make all
 ```
@@ -47,7 +44,7 @@ Similarly, you can invoke a test instance of the deployment
     > make runserver  # observe the docker command that is output, and tweak it for your own testing
 ```
 
-And if things seem broken, try dropping into a shell in your dev-container to figure things out:
+If things seem broken, try dropping into a shell in your dev-container to figure things out:
 
 ```
   make devshell
