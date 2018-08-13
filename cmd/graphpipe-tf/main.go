@@ -126,11 +126,13 @@ type tfContext struct {
 
 	model *tf.SavedModel
 
-	meta    *graphpipe.NativeMetadataResponse
-	outputs map[string]tf.Output
-	names   []string
-	types   []byte
-	shapes  [][]int64
+	meta           *graphpipe.NativeMetadataResponse
+	outputs        map[string]tf.Output
+	defaultInputs  []string
+	defaultOutputs []string
+	names          []string
+	types          []byte
+	shapes         [][]int64
 }
 
 func getSessionOpts() (*tf.SessionOptions, error) {
@@ -147,6 +149,7 @@ func getSessionOpts() (*tf.SessionOptions, error) {
 
 func initializeMetadata(opts options, c *tfContext) *graphpipe.NativeMetadataResponse {
 	c.outputs = map[string]tf.Output{}
+	outputsThatAreInputs := map[string]tf.Output{}
 	ops := c.model.Graph.Operations()
 	opMap := map[string]tf.Operation{}
 	for _, op := range ops {
@@ -156,10 +159,28 @@ func initializeMetadata(opts options, c *tfContext) *graphpipe.NativeMetadataRes
 		op := opMap[node.Name]
 		num := op.NumOutputs()
 		for i := 0; i < num; i++ {
+			output := op.Output(i)
+			for _, inp := range node.Input {
+				outputsThatAreInputs[inp] = output
+			}
+		}
+	}
+	for _, node := range c.graphDef.Node {
+		op := opMap[node.Name]
+		num := op.NumOutputs()
+		for i := 0; i < num; i++ {
 			name := node.Name + ":" + strconv.Itoa(i)
 			c.names = append(c.names, name)
 			output := op.Output(i)
 			c.outputs[name] = output
+			if op.Type() != "Const" {
+				if len(node.Input) == 0 {
+					c.defaultInputs = append(c.defaultInputs, name)
+				}
+				if _, present := outputsThatAreInputs[node.Name]; !present {
+					c.defaultOutputs = append(c.defaultOutputs, name)
+				}
+			}
 			t := toFlatDtype(output.DataType())
 			if t == graphpipefb.TypeNull {
 				logrus.Debugf("Unknown type for '%s': %v", name, output.DataType())
@@ -301,26 +322,28 @@ func serve(opts options) error {
 
 	c.meta = initializeMetadata(opts, c)
 
-	first := c.graphDef.Node[0].Name + ":0"
-	last := c.graphDef.Node[len(c.graphDef.Node)-1].Name + ":0"
+	var dIn []string
+	var dOut []string
 
-	dIn := strings.Split(opts.inputs, ",")
-	for i := range dIn {
-		if dIn[i] == "" {
-			dIn[i] = first
-		}
-		if !strings.Contains(dIn[i], ":") {
-			dIn[i] += ":0"
+	if len(opts.inputs) == 0 {
+		dIn = c.defaultInputs
+	} else {
+		dIn := strings.Split(opts.inputs, ",")
+		for i := range dIn {
+			if !strings.Contains(dIn[i], ":") {
+				dIn[i] += ":0"
+			}
 		}
 	}
 
-	dOut := strings.Split(opts.outputs, ",")
-	for i := range dOut {
-		if dOut[i] == "" {
-			dOut[i] = last
-		}
-		if !strings.Contains(dOut[i], ":") {
-			dOut[i] += ":0"
+	if len(opts.outputs) == 0 {
+		dOut = c.defaultOutputs
+	} else {
+		dOut = strings.Split(opts.outputs, ",")
+		for i := range dOut {
+			if !strings.Contains(dOut[i], ":") {
+				dOut[i] += ":0"
+			}
 		}
 	}
 
