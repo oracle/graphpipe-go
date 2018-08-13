@@ -1,0 +1,7 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+	],
+	"rootPath": "github.com/oracle/graphpipe-go/cmd/graphpipe-echo"
+}
