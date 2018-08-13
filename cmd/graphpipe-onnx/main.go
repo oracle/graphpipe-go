@@ -45,7 +45,7 @@ func version() string {
 type options struct {
 	model       string
 	listen      string
-	stateDir    string
+	cacheDir    string
 	verbose     bool
 	version     bool
 	cache       bool
@@ -155,20 +155,22 @@ func main() {
 		},
 	}
 	f := cmd.Flags()
-	f.StringVarP(&opts.stateDir, "dir", "d", "~/.graphpipe", "directory for local cache state")
+	f.StringVarP(&opts.cacheDir, "cache-dir", "", "~/.graphpipe", "directory for local cache state")
 	f.StringVarP(&opts.listen, "listen", "l", "127.0.0.1:9000", "listen string")
-	f.BoolVarP(&opts.verbose, "verbose", "v", false, "enable verbose output")
-	f.BoolVarP(&opts.version, "version", "V", false, "show version")
 	f.StringVarP(&opts.model, "model", "m", "", "ONNX model to load.   Accepts local file or http(s) url.")
-	f.StringVarP(&opts.initNet, "init_net", "", "", "init_net file to load")
-	f.StringVarP(&opts.predictNet, "predict_net", "", "", "predict_net file to load.  Accepts local file or http(s) url.")
-	f.StringVarP(&opts.valueInputs, "value_inputs", "", "", "value_inputs.json for the model.  Accepts local file or http(s) url.")
+	f.StringVarP(&opts.initNet, "init-net", "", "", "init_net file to load. Accepts local file or http(s) url.")
+	f.StringVarP(&opts.predictNet, "predict-net", "", "", "predict_net file to load.  Accepts local file or http(s) url.")
+	f.StringVarP(&opts.valueInputs, "value-inputs", "", "", "value_inputs.json for the model.  Accepts local file or http(s) url.")
 	f.BoolVarP(&opts.cache, "cache", "", false, "enable results caching")
 	f.BoolVarP(&opts.disableCuda, "disable-cuda", "", false, "disable Cuda")
 	f.StringVarP(&opts.profile, "profile", "", "", "profile and write profiling output to this file")
-	f.IntVarP(&opts.engineCount, "engine_count", "", 1, "engine count")
+	f.IntVarP(&opts.engineCount, "engine-count", "", 1, "number of caffe2 graph engines to create")
 
-	opts.stateDir = strings.Replace(opts.stateDir, "~", os.Getenv("HOME"), -1)
+	f = cmd.PersistentFlags()
+	f.BoolVarP(&opts.verbose, "verbose", "v", false, "enable verbose output")
+	f.BoolVarP(&opts.version, "version", "V", false, "show version")
+
+	opts.cacheDir = strings.Replace(opts.cacheDir, "~", os.Getenv("HOME"), -1)
 
 	if opts.model == "" {
 		opts.model = os.Getenv("GP_MODEL")
@@ -369,7 +371,7 @@ func serve(opts options) error {
 
 	cachePath := ""
 	if opts.cache {
-		cachePath = filepath.Join(opts.stateDir, fmt.Sprintf("%x.db", c2c.modelHash))
+		cachePath = filepath.Join(opts.cacheDir, fmt.Sprintf("%x.db", c2c.modelHash))
 	}
 
 	serveOpts := &graphpipe.ServeRawOptions{
