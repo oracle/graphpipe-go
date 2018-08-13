@@ -41,5 +41,5 @@ Similarly, you can invoke a test instance of the deployment
 If things seem broken, try dropping into a shell in your dev-container to figure things out:
 
 ```
-  make devshell
+    > make devshell
 ```

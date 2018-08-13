@@ -1,6 +1,6 @@
 # graphpipe-tf - Serve TensorFlow Models via Graphpipe
 
-The headlines are true! You can serve your TF models via graphpipe
+The headlines are true! You can serve your caffe2/ONNX models via graphpipe
 easily using this server.
 
 ## Development Quickstart
@@ -54,62 +54,53 @@ If things seem broken, try dropping into a shell in your dev-container to figure
 If you are behind a proxy, set the *http_proxy* and *https_proxy* environment variables so our build system
 can forward this configuration to docker.
 
-## Running the Server Manually
-If you want to run the server manually, you will need to install some additional dependencies:
-
-  - libtensorflow: https://www.tensorflow.org/install/install_go or `make install-tensorflow`
-  - govendor: https://github.com/kardianos/govendor or `make install-govendor`
-  - CUDA8+: required for building gpu-capable binaries
-
-If you manage to get these and their recursive deps installed, you should now be able to call make
-with no arguments:
-
-```
-  export RUN_TYPE=cpu
-  make deps && make
-```
-
-
 ## Running the server
-Before running the server, you first need a tensorflow model to serve.
-The model should be in protobuf (.pb) format, or in the tensorflow-serving
-directory format.  We provide a tool to easily convert keras to the correct
-model format [here](https://github.com/oracle/graphpipe-tf-py/blob/master/examples/convert.py).
-
-To see the server's command line options:
+The graphpipe-onnx binary has the following options:
 
 ```
-./graphpipe-tf --help
-graphpipe-tf - serving up ml models
+  Required Flags for ONNX Models:
+    -m, --model string          ONNX model to load.   Accepts local file or http(s) url.
+        --value-inputs string   value_inputs.json for the model.  Accepts local file or http(s) url.
 
-Usage:
-  graphpipe-tf [flags]
+  Required Flags for Caffe2 Models:
+        --init-net string       init_net file to load
+        --predict-net string    predict_net file to load.  Accepts local file or http(s) url.
+        --value-inputs string   value_inputs.json for the model.  Accepts local file or http(s) url.
 
-Flags:
-  -n, --cache            do not cache results
-  -d, --dir string       dir for local state (default "~/.graphpipe-tf")
-  -h, --help             help for graphpipe-tf
-  -i, --inputs string    comma seprated default inputs
-  -l, --listen string    listen string (default "127.0.0.1:9000")
-  -m, --model string     tensorflow model to load (accepts local files and unauthenticated http/https urls)
-  -o, --outputs string   comma separated default outputs
-  -v, --verbose          verbose output
-  -V, --version          show version
+  Optional Flags:
+        --cache                 enable results caching
+        --cache-dir string      directory for local cache state (default "~/.graphpipe")
+        --disable-cuda          disable Cuda
+        --engine-count int      number of caffe2 graph engines to create (default 1)
+    -h, --help                  help for graphpipe-caffe2
+    -l, --listen string         listen string (default "127.0.0.1:9000")
+        --profile string        profile and write profiling output to this file
+    -v, --verbose               enable verbose o
 ```
 
-The only required parameter is --model (see above).  If not specified, inputs and outputs
-will be automatically determined by the graphdef as the first input and last output; if your
-model has multiple inputs and/or outputs, you must specify these parameters manually.
-
-Once you have your model, start the server .
-
+The exact flags you need depends on the type of model you have.  If you are invoking an onnx model, you need
+to specify --model and --value-inputs:
 ```
-./graphpipe-tf --model=mymodel.pb
+./graphpipe-onnx --model=mymodel.onnx --value-inputs=value-inputs.json
+```
+
+For caffe2 models, you must specify 3 inputs, --init-net, --predict-net, and --value-inputs:
+```
+./graphpipe-onnx --init-net=my-init-net.pb --predict-net=my-predict-net.pb --value-inputs=value_inputs.json
 ```
 
 ## Environment Variables
 For convenience, the key parameters of the service can be configured with environment variables,
- GP_MODEL, GP_INPUTS, GP_OUTPUTS, and GP_CACHE.
+
+```
+    GP_OUTPUTS                comma seprated default inputs
+    GP_INPUTS                 comma seprated default outputs
+    GP_MODEL                  ONNX model to load.  Accepts local file or http(s) url.
+    GP_CACHE                  enable results caching
+    GP_INIT_NET               init_net file to load. Accepts local file or http(s) url.
+    GP_PREDICT_NET            predict_net file to load. Accepts local file or http(s) url.
+    GP_VALUE_INPUTS           value_inputs.json file to load. Accepts local file or http(s) url.
+```
 
 
 ## Troubleshooting
@@ -126,3 +117,4 @@ to configure your docker runtime to use them as well. Probably lives
 (or needs to be created) at:
 
   `/etc/systemd/system/docker.service.d/http-proxy.conf`
+
