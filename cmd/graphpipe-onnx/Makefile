@@ -151,4 +151,4 @@ go-deps: govendor
 
 deps: graphpipe-go-deps go-deps
 
-all: $(NAME)
+all: dev-container in-docker runtime-container
