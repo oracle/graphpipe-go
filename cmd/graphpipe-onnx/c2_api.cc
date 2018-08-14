@@ -27,21 +27,10 @@ struct c2_engine_ctx {
 
     std::map<std::string, std::vector<int64_t>> dims;
     std::map<std::string, int64_t> itemsizes;
-    std::map<std::string, int64_t> rowsizes;
     std::map<std::string, int64_t> dtypes;
 
     caffe2::NetDef init_net, pred_net;
 };
-
-
-int _get_rowsize(c2_engine_ctx *ctx, char *name) {
-    std::map<std::string, int64_t>::iterator it;
-    it = ctx->rowsizes.find(name);
-    if(it == ctx->rowsizes.end()) {
-        return -1;
-    }
-    return it->second;
-}
 
 
 int _get_itemsize(c2_engine_ctx *ctx, char *name) {
@@ -74,11 +63,6 @@ int c2_engine_get_dtype(c2_engine_ctx *ctx, char *name) {
 }
 
 
-int c2_engine_get_rowsize(c2_engine_ctx *ctx, char *name) {
-    return _get_rowsize(ctx, name);
-}
-
-
 int c2_engine_get_itemsize(c2_engine_ctx *ctx, char *name) {
     return _get_itemsize(ctx, name);
 }
@@ -99,23 +83,19 @@ void _do_tensor_copy(c2_engine_ctx *ctx, caffe2::Blob *blob, caffe2::TensorCPU &
     }
 }
 
-int c2_set_input_batch(c2_engine_ctx *ctx, char *name, void *input, int item_count) {
+int c2_set_input_batch(c2_engine_ctx *ctx, char *name, void *input, int item_count, int64_t *shape, int shape_len) {
     caffe2::Predictor::TensorMap::iterator it;
     auto* blob = ctx->workspace.GetBlob(name);
     if (!blob) {
         LOG(ERROR) << "Blob not found for input name:" << name << "\n";
         return -1;
     }
-    std::map<std::string, std::vector<int64_t>>::iterator jt;
-    jt = ctx->dims.find(name);
-    if (jt == ctx->dims.end()) {
-        LOG(ERROR) << "Dims not found for input name:" << name << "\n";
-        return -1;
+    int rowsize = 1;
+    for (int i=1; i<shape_len; i++) {
+        rowsize *= shape[i];
     }
 
-    auto dims = jt->second;
     int itemsize = _get_itemsize(ctx, name);
-    int rowsize = _get_rowsize(ctx, name);
     if (item_count % rowsize != 0) {
         LOG(ERROR) << "item_count % rowsize != 0 for input name:" << name << "\n";
         return -1;
@@ -123,7 +103,7 @@ int c2_set_input_batch(c2_engine_ctx *ctx, char *name, void *input, int item_cou
 
     int dtype = _get_dtype(ctx, name);
     switch (dtype) {
-#define COPY_INPUT(t) { t *arr = (t *) input; std::vector<t> batch_data {arr, arr + item_count}; caffe2::TensorCPU input({(item_count/rowsize), dims[1], dims[2], dims[3]}, batch_data, NULL); _do_tensor_copy(ctx, blob, input); }
+#define COPY_INPUT(t) { t *arr = (t *) input; std::vector<t> batch_data {arr, arr + item_count}; caffe2::TensorCPU input({(item_count/rowsize), shape[1], shape[2], shape[3]}, batch_data, NULL); _do_tensor_copy(ctx, blob, input); }
         case caffe2::TensorProto_DataType_FLOAT:
             COPY_INPUT(float);
             break;
@@ -222,7 +202,7 @@ int c2_engine_get_output_size(c2_engine_ctx *ctx, int i) {
 }
 
 
-int c2_engine_get_output(c2_engine_ctx *ctx, int i, void *output) {
+int c2_engine_get_output(c2_engine_ctx *ctx, int i, void *output, int64_t *shape, int shape_len) {
     std::map<int, std::string>::iterator it;
     it = ctx->outputs.find(i);
     if(it == ctx->outputs.end()) {
@@ -249,6 +229,13 @@ int c2_engine_get_output(c2_engine_ctx *ctx, int i, void *output) {
             size = t.size() * t.itemsize();
             d = t.raw_data();
             memcpy(output, d, size);
+            if (t.dims().size() != shape_len) {
+                LOG(ERROR) << "Shape length mismatch: " << t.dims().size() << " != " << shape_len << "\n";
+                return -1;
+            }
+            for (int i=0;i<t.dims().size(); i++) {
+                shape[i] = t.dims()[i];
+            }
 #else
             LOG(ERROR) << "Invalid cuda call to c2_engine_get_output: " << it->second << "\n";
             return -1;
@@ -259,6 +246,13 @@ int c2_engine_get_output(c2_engine_ctx *ctx, int i, void *output) {
             size = t.size() * t.itemsize();
             d = t.raw_data();
             memcpy(output, d, size);
+            if (t.dims().size() != shape_len) {
+                LOG(ERROR) << "Shape length mismatch: " << t.dims().size() << " != " << shape_len << "\n";
+                return -1;
+            }
+            for (int i=0;i<t.dims().size(); i++) {
+                shape[i] = t.dims()[i];
+            }
         }
         return size;
     }
@@ -446,7 +440,6 @@ int _initialize(c2_engine_ctx *ctx) {
                 LOG(ERROR) << "Unsupported input dtype: " << dtype << " for input " << it->second << "\n";
                 return -1;
         }
-        ctx->rowsizes[it->second] = size;
     }
 
     ctx->workspace.RunNet(ctx->pred_net.name());
@@ -467,7 +460,6 @@ int _initialize(c2_engine_ctx *ctx) {
             }
             ctx->dims[it->second] = dims;
             ctx->itemsizes[it->second] = data.itemsize();
-            ctx->rowsizes[it->second] = size;
             ctx->dtypes[it->second] = caffe2::TypeMetaToDataType(data.meta());
 #else
             LOG(ERROR) << "Cuda is not enabled in this configuration.  Aborting.\n";
@@ -486,7 +478,6 @@ int _initialize(c2_engine_ctx *ctx) {
             }
             ctx->dims[it->second] = dims;
             ctx->itemsizes[it->second] = data.itemsize();
-            ctx->rowsizes[it->second] = size;
             ctx->dtypes[it->second] = caffe2::TypeMetaToDataType(data.meta());
         }
 

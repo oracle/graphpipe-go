@@ -450,16 +450,10 @@ func (c2c *c2Context) apply(requestContext *graphpipe.RequestContext, config str
 			return nil, fmt.Errorf("Input type mismatch.  Got %d expected %d", gptype2ctype[input.Type], C.c2_engine_get_dtype(engine_ctx, cname))
 		}
 
-		dims := c2c.InputDims[name]
-		for i := 1; i < len(dims); i++ {
-			if input.Shape[i] != dims[i] {
-				return nil, fmt.Errorf("Invalid input shape for %s.  Expected %v, got %v", name, dims, input.Shape)
-			}
-		}
-
 		itemSize := int(C.c2_engine_get_itemsize(engine_ctx, cname))
 		size := len(input.Data)
-		if 0 != int(C.c2_set_input_batch(engine_ctx, cname, unsafe.Pointer(&input.Data[0]), C.int(size/itemSize))) {
+		if 0 != int(C.c2_set_input_batch(engine_ctx, cname, unsafe.Pointer(&input.Data[0]), C.int(size/itemSize),
+			(*C.int64_t)(&input.Shape[0]), C.int(len(input.Shape)))) {
 			return nil, fmt.Errorf("Could not set input batch for: %s", name)
 		}
 	}
@@ -474,11 +468,6 @@ func (c2c *c2Context) apply(requestContext *graphpipe.RequestContext, config str
 			return nil, fmt.Errorf("Could not find requested output: %s", name)
 		}
 
-		size := C.c2_engine_get_output_size(engine_ctx, idx)
-		if size < 0 {
-			return nil, fmt.Errorf("Could not find size for requested output: %s", name)
-		}
-
 		itemSize := int64(C.c2_engine_get_itemsize(engine_ctx, cname))
 		if itemSize < 0 {
 			return nil, fmt.Errorf("Could not find itemSize for requested output: %s", name)
@@ -489,15 +478,16 @@ func (c2c *c2Context) apply(requestContext *graphpipe.RequestContext, config str
 			return nil, fmt.Errorf("Could not find dtype for requested output: %s", name)
 		}
 
-		rowSize := int64(C.c2_engine_get_rowsize(engine_ctx, cname))
-		if rowSize < 0 {
-			return nil, fmt.Errorf("Could not find rowSize for requested output: %s", name)
+		size := C.c2_engine_get_output_size(engine_ctx, idx)
+		if size < 0 {
+			return nil, fmt.Errorf("Could not find size for requested output: %s", name)
 		}
-
 		buf := make([]byte, size)
-		actual := C.c2_engine_get_output(engine_ctx, idx, unsafe.Pointer(&buf[0]))
-		if actual != size {
-			return nil, fmt.Errorf("Returned size mismatch: %s != %s", size, actual)
+
+		shape := make([]int64, len(c2c.OutputDims[name]))
+		rsize := C.c2_engine_get_output(engine_ctx, idx, unsafe.Pointer(&buf[0]), (*C.int64_t)(&shape[0]), C.int(len(shape)))
+		if rsize != size {
+			return nil, fmt.Errorf("C.c2_engine_get_output size mismatch: %d != %d", size, rsize)
 		}
 
 		gptype := -1
@@ -511,15 +501,6 @@ func (c2c *c2Context) apply(requestContext *graphpipe.RequestContext, config str
 		if gptype < 0 {
 			return nil, fmt.Errorf("Unhandled type %d", dtype)
 		}
-
-		dims := c2c.OutputDims[name]
-		shape := make([]int64, len(dims))
-
-		for j, d := range dims {
-			shape[j] = int64(d)
-		}
-
-		shape[0] = int64(size) / (rowSize * itemSize)
 
 		nt := &graphpipe.NativeTensor{}
 		nt.InitWithData(buf, shape, uint8(gptype))

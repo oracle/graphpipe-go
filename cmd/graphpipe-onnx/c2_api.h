@@ -22,15 +22,14 @@ const char *c2_engine_get_output_name(c2_engine_ctx * ctx, int i);
 int c2_engine_get_dimensions(c2_engine_ctx *ctx, char *name, int64_t *dimensions);
 void c2_engine_register_input(c2_engine_ctx *ctx, char *name, int64_t *shape, int len, int dtype);
 
-int c2_set_input_batch(c2_engine_ctx *ctx, char *name, void *input, int el_count);
+int c2_set_input_batch(c2_engine_ctx *ctx, char *name, void *input, int el_count, int64_t *shape, int shape_len);
 int c2_execute_batch(c2_engine_ctx *ctx);
 
-int c2_engine_get_output(c2_engine_ctx *ctx, int i, void *output);
+int c2_engine_get_output(c2_engine_ctx *ctx, int i, void *output, int64_t *shape, int shape_len);
 int c2_engine_get_output_size(c2_engine_ctx *ctx, int i);
 
 int c2_engine_get_dtype(c2_engine_ctx *ctx, char *name);
 int c2_engine_get_itemsize(c2_engine_ctx *ctx, char *name);
-int c2_engine_get_rowsize(c2_engine_ctx *ctx, char *name);
 
 int c2_engine_get_output_index(c2_engine_ctx *ctx, char *name);
 
