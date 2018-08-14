@@ -1,9 +1,59 @@
-# graphpipe-go - when the pipe comes a'callin you better be graphin it
+# graphpipe-go - Serve and Access GraphPipe models using golang.
 
 `graphpipe-go` provides a variety of functions to help you easily serve
-and access ml models using the very speedy `graphpipe` protocol.
+and access ml models in golang using the very speedy `graphpipe` protocol.
 
-## Serving Models
+Additionally, this package provides reference server implementations
+for:
+
+* [A Simple Tensor Echo Server](https://github.com/oracle/graphpipe-go/tree/master/cmd/graphpipe-echo)
+* [ONNX and Caffe2 Model Server](https://github.com/oracle/graphpipe-go/tree/master/cmd/graphpipe-onnx)
+* [Tensorflow Model Server](https://github.com/oracle/graphpipe-go/tree/master/cmd/graphpipe-tf)
+
+We have some other reference servers in the works as well, which we plan to release soon.
+
+If you are interested in learning a bit more about how the golang servers and clients work, read on:
+
+## Client API
+Most users integrating GraphPipe into their application will be interested
+making client calls.  To make remote calls, we provide three different APIs
+
+### `Remote`
+
+```
+// Remote is the simple interface for making a remote model request.
+// It performs introspection and automatic type conversion on its inputs and outputs.
+// Optionally, you can specify inputName and outputName; if either of these
+// are missing it is up to the server to infer sane defaults for inputNames
+// and outputNames;
+func Remote(client *http.Client, uri string, in interface{}, inputName, outputName string) (interface{}, error) {}
+```
+
+### `MultiRemote`
+
+```
+// MultiRemote is a simple interface for communicating with models
+// that have multiple inputs and outputs.  It is recommended that you
+// Specify inputNames and outputNames so that you can control input/output
+// ordering.  MultiRemote also performs type introspection for inputs and outputs.
+func MultiRemote(client *http.Client, uri string, ins []interface{}, inputNames, outputNames []string) ([]interface{}, error) {}
+```
+
+### `MultiRemoteRaw`
+```
+// MultiRemoteRaw is the actual implementation of the remote model
+// request using NativeTensor objects.
+func MultiRemoteRaw(client *http.Client, uri string, inputs []*NativeTensor, inputNames, outputNames []string) ([]*NativeTensor, error) {}
+```
+In similar fashion to the serving model, the client for making remote
+calls is made up of three functions, Remote, MultiRemote, and
+MultiRemoteRaw.
+
+The first two of those will convert your native Go types into tensors
+and back, while the last one uses `graphpipe` tensors throughout.
+
+
+## Model Serving API
 
 There are two Serve functions, Serve and ServeRaw, that both create
 standard Go http listeners and support caching with BoltDB.
@@ -20,6 +70,7 @@ data objects and converts between them for you. From the Go docs:
 // into native datatypes based on the shapes passed in to this function
 // plus any additional shapes implied by your apply function.
 // If cache is true, will attempt to cache using cache.db as cacheFile
+func Serve(listen string, cache bool, apply interface{}, inShapes, outShapes [][]int64) error {}
 ```
 
 As an example, here is a simple way to construct a graphpipe identity
@@ -50,6 +101,8 @@ func apply(requestContext *graphpipe.RequestContext, ignore string, in interface
 }
 ```
 
+You can a buildable example of this server [here](https://github.com/oracle/graphpipe-go/tree/master/cmd/graphpipe-echo).
+
 ### ServeRaw
 
 For applications that will be passing the tensors directly to another
@@ -57,13 +110,3 @@ system for processing and don't need conversion to standard Go types,
 ServeRaw provides a lower-level interface.
 
 As you might expect, Serve uses ServeRaw underneath the hood.
-
-## Accessing Models
-
-In similar fashion to the serving model, the client for making remote
-calls is made up of three functions, Remote, MultiRemote, and
-MultiRemoteRaw.
-
-The first two of those will convert your native Go types into tensors
-and back, while the last one uses `graphpipe` tensors throughout.
-

@@ -12,6 +12,10 @@ import (
 )
 
 // Remote is the simple interface for making a remote model request.
+// It performs introspection and automatic type conversion on its inputs and outputs.
+// Optionally, you can specify inputName and outputName; if either of these
+// are missing it is up to the server to infer sane defaults for inputNames
+// and outputNames;
 func Remote(client *http.Client, uri string, in interface{}, inputName, outputName string) (interface{}, error) {
 	inputNames := []string{}
 	outputNames := []string{}
@@ -25,8 +29,10 @@ func Remote(client *http.Client, uri string, in interface{}, inputName, outputNa
 	return res[0], err
 }
 
-// MultiRemote is the simple interface for making multiple remote
-// model requests.
+// MultiRemote is a simple interface for communicating with models
+// that have multiple inputs and outputs.  It is recommended that you
+// Specify inputNames and outputNames so that you can control input/output
+// ordering.  MultiRemote also performs type introspection for inputs and outputs.
 func MultiRemote(client *http.Client, uri string, ins []interface{}, inputNames, outputNames []string) ([]interface{}, error) {
 	inputs := make([]*NativeTensor, len(ins))
 	for i := range ins {
