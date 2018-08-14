@@ -3,6 +3,10 @@
 The headlines are true! You can serve your caffe2/ONNX models via graphpipe
 easily using this server.
 
+If all you want to do is deploy models using GraphPipe, we recommend you read 
+our [project documentation](https://oracle.github.io/graphpipe/).  If you are
+interested in hacking on `graphpipe-onnx`, read on.
+
 ## Development Quickstart
 Because of the relative complexity of system configuration when dealing with machine
 learning libraries, our dev and build system for graphpipe-tf is 100% docker-driven.
@@ -23,9 +27,9 @@ You can switch between these configurations by setting the *RUN_TYPE* environmen
 In order to support streamlined development and deployment, each build configuration
 has 2 containers: one for development, and one for deployment.
 ```
-    > make dev-container # creates the base dev container
-    > make in-docker # compiles the server inside the docker image
-    > make runtime-container # compiles the deployment container, and injects build artifacts into this container
+    > make dev-container # creates the base dev-container
+    > make in-docker # compiles the server inside the dev-container
+    > make runtime-container # compiles the runtime-container and injects build artifacts
 ```
 
 Additionally, you can build all three of these steps at the same time:

@@ -13,13 +13,12 @@ graphpipe-echo has 2 supported configurations:
 * *cpu* (default) - create an Ubuntu-based build.
 * *oraclelinux-cpu* - same as cpu, but using oraclelinux as a base image.
 
-
 In order to support streamlined development and deployment, each build configuration
 has 2 containers: one for development, and one for deployment.
 ```
-    > make dev-container # creates the base dev container
-    > make in-docker # compiles the server inside the docker image
-    > make runtime-container # compiles the deployment container, and injects build artifacts into this container
+    > make dev-container # creates the base dev-container
+    > make in-docker # compiles the server inside the dev-container
+    > make runtime-container # compiles the runtime-container and injects build artifacts
 ```
 
 Additionally, you can build all three of these steps at the same time:
