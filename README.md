@@ -1,4 +1,4 @@
-# graphpipe-go - Serve and Access ML models using golang
+# graphpipe-go - GraphPipe for go
 
 `graphpipe-go` provides a variety of functions to help you easily serve
 and access ml models using the very speedy [`GraphPipe`](https://oracle.github.io/graphpipe/) protocol.
@@ -9,11 +9,9 @@ for common ML model formats, including:
 * [ONNX and Caffe2 Model Server](https://github.com/oracle/graphpipe-go/tree/master/cmd/graphpipe-onnx)
 * [Tensorflow Model Server](https://github.com/oracle/graphpipe-go/tree/master/cmd/graphpipe-tf)
 
-We have some other reference servers in the works as well, which we plan to release soon.
-
 For an overview of GraphPipe, read our [project documentation](https://oracle.github.io/graphpipe/)
 
-If you are interested in learning a bit more about how the golang servers and
+If you are interested in learning a bit more about how the go servers and
 clients work, read on:
 
 ## Client API
@@ -54,7 +52,6 @@ MultiRemoteRaw.
 The first two of those will convert your native Go types into tensors
 and back, while the last one uses `graphpipe` tensors throughout.
 
-
 ## Model Serving API
 
 There are two Serve functions, Serve and ServeRaw, that both create
@@ -62,10 +59,10 @@ standard Go http listeners and support caching with BoltDB.
 
 ### Serve
 
-For applications where the manipulation of tensors will mostly be in
-Go, Serve provides a wrapper to your `apply` function that allows
-you to work with standard go types rather than explicit `graphpipe`
-data objects and converts between them for you. From the Go docs:
+For applications where the manipulation of tensors will mostly be in go, Serve
+provides a wrapper to your `apply` function that allows you to work with
+standard go types rather than explicit `graphpipe` data objects and converts
+between them for you. From the Go docs:
 
 ```
 // Serve offers multiple inputs and outputs and converts tensors
@@ -75,9 +72,8 @@ data objects and converts between them for you. From the Go docs:
 func Serve(listen string, cache bool, apply interface{}, inShapes, outShapes [][]int64) error {}
 ```
 
-As an example, here is a simple way to construct a graphpipe identity
- server, which can receive a graphpipe network request, and echo it back
-to the client:
+As an example, here is a simple way to construct a graphpipe identity server,
+which can receive a graphpipe network request, and echo it back to the client:
 
 ```
 package main
@@ -107,9 +103,11 @@ You can find a docker-buildable example of this server [here](https://github.com
 
 ### ServeRaw
 
-For applications that will be passing the tensors directly to another
-system for processing and don't need conversion to standard Go types,
-ServeRaw provides a lower-level interface.  For examples of apps that
-use ServeRaw, see [graphpipe-tf](https://github.com/oracle/graphpipe-go/tree/master/cmd/graphpipe-tf) and [graphpipe-onnx](https://github.com/oracle/graphpipe-go/tree/master/cmd/graphpipe-onnx).
+For applications that will be passing the tensors directly to another system
+for processing and don't need conversion to standard Go types, ServeRaw
+provides a lower-level interface.  For examples of apps that use ServeRaw, see
+[graphpipe-tf](https://github.com/oracle/graphpipe-go/tree/master/cmd/graphpipe-tf)
+and
+[graphpipe-onnx](https://github.com/oracle/graphpipe-go/tree/master/cmd/graphpipe-onnx).
 
 As you might expect, Serve uses ServeRaw underneath the hood.
