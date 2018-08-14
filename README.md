@@ -1,18 +1,20 @@
-# graphpipe-go - Serve and Access GraphPipe models using golang.
+# graphpipe-go - Serve and Access ML models using golang
 
 `graphpipe-go` provides a variety of functions to help you easily serve
-and access ml models in golang using the very speedy `graphpipe` protocol.
+and access ml models using the very speedy [`GraphPipe`](https://oracle.github.io/graphpipe/) protocol.
 
 Additionally, this package provides reference server implementations
-for:
+for common ML model formats, including:
 
-* [A Simple Tensor Echo Server](https://github.com/oracle/graphpipe-go/tree/master/cmd/graphpipe-echo)
 * [ONNX and Caffe2 Model Server](https://github.com/oracle/graphpipe-go/tree/master/cmd/graphpipe-onnx)
 * [Tensorflow Model Server](https://github.com/oracle/graphpipe-go/tree/master/cmd/graphpipe-tf)
 
 We have some other reference servers in the works as well, which we plan to release soon.
 
-If you are interested in learning a bit more about how the golang servers and clients work, read on:
+For an overview of GraphPipe, read our [project documentation](https://oracle.github.io/graphpipe/)
+
+If you are interested in learning a bit more about how the golang servers and
+clients work, read on:
 
 ## Client API
 Most users integrating GraphPipe into their application will be interested
@@ -101,12 +103,13 @@ func apply(requestContext *graphpipe.RequestContext, ignore string, in interface
 }
 ```
 
-You can a buildable example of this server [here](https://github.com/oracle/graphpipe-go/tree/master/cmd/graphpipe-echo).
+You can find a docker-buildable example of this server [here](https://github.com/oracle/graphpipe-go/tree/master/cmd/graphpipe-echo).
 
 ### ServeRaw
 
 For applications that will be passing the tensors directly to another
 system for processing and don't need conversion to standard Go types,
-ServeRaw provides a lower-level interface.
+ServeRaw provides a lower-level interface.  For examples of apps that
+use ServeRaw, see [graphpipe-tf](https://github.com/oracle/graphpipe-go/tree/master/cmd/graphpipe-tf) and [graphpipe-onnx](https://github.com/oracle/graphpipe-go/tree/master/cmd/graphpipe-onnx).
 
 As you might expect, Serve uses ServeRaw underneath the hood.
