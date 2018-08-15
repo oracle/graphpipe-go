@@ -29,22 +29,8 @@ endif
 
 .PHONY: $(NAME)
 
-$(NAME):
-	go build -ldflags '-X "main.ver=$(VERSION)" -X "main.sha=$(sha)"'
-
-devshell:
-	$(DOCKER) run -it --rm \
-		-v $(PWD)/../../:/go/src/github.com/oracle/graphpipe-go \
-		-w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-onnx \
-		-p 9000:9000 \
-		-e http_proxy=$(http_proxy) \
-		-e https_proxy=$(https_proxy) \
-		-e GOPATH=/go \
-		-e CHOWN=$$(id -u):$$(id -g) \
-		$(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
-		/bin/bash
-
 in-docker:
+	$(DOCKER) inspect --type=image $(LIBTF_IMAGE):$(RUN_TYPE)-dev > /dev/null ||  make dev-container
 	$(DOCKER) run -it --rm \
 		-v $(PWD)/../../:/go/src/github.com/oracle/graphpipe-go \
 		-w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-onnx \
@@ -57,6 +43,24 @@ in-docker:
 		-e CHOWN=$$(id -u):$$(id -g) \
 		$(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
 		/usr/bin/make $(RUN_TYPE) install-govendor deps graphpipe-onnx copy-files-$(RUN_TYPE) fix-perms
+
+
+$(NAME):
+	go build -ldflags '-X "main.ver=$(VERSION)" -X "main.sha=$(sha)"'
+
+local: $(NAME)
+
+devshell:
+	$(DOCKER) run -it --rm \
+		-v $(PWD)/../../:/go/src/github.com/oracle/graphpipe-go \
+		-w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-onnx \
+		-p 9000:9000 \
+		-e http_proxy=$(http_proxy) \
+		-e https_proxy=$(https_proxy) \
+		-e GOPATH=/go \
+		-e CHOWN=$$(id -u):$$(id -g) \
+		$(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
+		/bin/bash
 
 devserver:
 	$(DOCKER) run -it --rm \

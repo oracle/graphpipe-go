@@ -31,10 +31,8 @@ endif
 
 .PHONY: $(NAME)
 
-$(NAME):
-	$(LD_STUBS) go build -ldflags '-X "main.ver=$(VERSION)" -X "main.sha=$(sha)"'
-
 in-docker:
+	docker inspect --type=image $(LIBTF_IMAGE):$(RUN_TYPE)-dev > /dev/null ||  make dev-container
 	docker run -it --rm \
 		-v $(PWD)/../../:/go/src/github.com/oracle/graphpipe-go \
 		-w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-tf \
@@ -47,6 +45,19 @@ in-docker:
 		-e CHOWN=$$(id -u):$$(id -g) \
 		$(LIBTF_IMAGE):$(RUN_TYPE)-dev \
 		/usr/bin/make install-govendor deps $(RUN_TYPE) copy-files-$(RUN_TYPE) graphpipe-tf fix-perms
+
+check-go-version:
+	$(eval min_version := go1.8)
+	$(eval lesser_version=$(shell echo "`go version | cut -d " " -f3` ${min_version}" | tr " " "\n" | sort -s -t- -k 2,2nr |  sort -t. -s -k 1,1nr -k 2,2nr -k 3,3nr -k 4,4nr | tail -1))
+	@if [ "${min_version}" != "${lesser_version}" ]; then \
+		echo "minimum go version is ${min_version}.  You have ${lesser_version}"; \
+		exit 1;\
+	fi
+
+$(NAME): check-go-version
+	$(LD_STUBS) go build -ldflags '-X "main.ver=$(VERSION)" -X "main.sha=$(sha)"'
+
+local: $(NAME)
 
 cpu:
 	# pass
@@ -119,9 +130,6 @@ runserver:
         $(GRAPHPIPE_TF_IMAGE):$(RUN_TYPE) \
         --model=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.pb \
 		--listen=0.0.0.0:9000
-
-install-go:
-	apt install golang-go
 
 install-govendor:
 	@if [ ! -e $(GOPATH)/bin/govendor ]; then \
