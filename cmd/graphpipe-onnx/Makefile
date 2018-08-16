@@ -3,6 +3,8 @@ LIBCAFFE_IMAGE=libcaffe2
 GRAPHPIPE_IMAGE=graphpipe-onnx
 RUN_TYPE?=cpu
 DOCKER?=docker
+ONNX_URL?=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.onnx
+ONNX_VALUE_INPUTS_URL?=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.value_inputs.json
 
 sha = $(shell git rev-parse --short HEAD | tr -d ' \n')
 ifeq ($(VERSION),)
@@ -25,13 +27,14 @@ LD_STUBS=LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs/:$$LD_LIBRARY_PATH
 GP_ENABLE_CUDA=1
 CGO_LDFLAGS=/usr/local/cuda/lib64/libcurand.so /usr/local/lib/libcaffe2_gpu.so /usr/local/cuda-9.0/targets/x86_64-linux/lib/libcudart.so
 CGO_CXXFLAGS=-DGP_ENABLE_CUDA
+DOCKER=nvidia-docker
 endif
 
 .PHONY: $(NAME)
 
 in-docker:
-	$(DOCKER) inspect --type=image $(LIBTF_IMAGE):$(RUN_TYPE)-dev > /dev/null ||  make dev-container
-	$(DOCKER) run -it --rm \
+	docker inspect --type=image $(LIBTF_IMAGE):$(RUN_TYPE)-dev > /dev/null ||  make dev-container
+	docker run -it --rm \
 		-v $(PWD)/../../:/go/src/github.com/oracle/graphpipe-go \
 		-w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-onnx \
 		-e http_proxy=$(http_proxy) \
@@ -72,7 +75,7 @@ devserver:
 		-e GOPATH=/go \
 		-e CHOWN=$$(id -u):$$(id -g) \
 		$(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
-		./graphpipe-onnx --model=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.onnx --value_inputs=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.value_inputs.json --listen=0.0.0.0:9000
+		./graphpipe-onnx --model=$(ONNX_URL) --value-inputs=$(ONNX_VALUE_INPUTS_URL) --listen=0.0.0.0:9000
 
 runserver:
 	$(DOCKER) run -it --rm \
@@ -82,7 +85,7 @@ runserver:
 		-e https_proxy=$(https_proxy) \
 		-e GOPATH=/go \
 		$(GRAPHPIPE_IMAGE):$(RUN_TYPE) \
-		--model=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.onnx --value_inputs=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.value_inputs.json --listen=0.0.0.0:9000
+		--model=$(ONNX_URL) --value-inputs=$(ONNX_VALUE_INPUTS_URL) --listen=0.0.0.0:9000
 
 copy-files-cpu:
 	mkdir -p lib
@@ -112,7 +115,7 @@ gpu:
 	ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/libcuda.so.1
 
 dev-container:
-	$(DOCKER) build \
+	docker build \
 		-f Dockerfile.$(RUN_TYPE)-dev \
 		-t $(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
 		--build-arg http_proxy=$(http_proxy) \
@@ -120,22 +123,12 @@ dev-container:
 		.
 
 runtime-container:
-	$(DOCKER) build \
+	docker build \
 		-f Dockerfile.$(RUN_TYPE) \
 		-t $(GRAPHPIPE_IMAGE):$(RUN_TYPE) \
 		--build-arg http_proxy=$(http_proxy) \
 		--build-arg https_proxy=$(https_proxy) \
 		.
-
-shell:
-	$(DOCKER) run -it --rm \
-		-v $(PWD)/../../:/go/src/github.com/oracle/graphpipe-go \
-		-w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-onnx \
-		-e http_proxy=$(http_proxy) \
-		-e https_proxy=$(https_proxy) \
-		$(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
-		/bin/sh
-
 
 install-govendor:
 	@if [ ! -e $(GOPATH)/bin/govendor ]; then \

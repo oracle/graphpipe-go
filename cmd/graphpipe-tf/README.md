@@ -64,7 +64,7 @@ If you want to run the server manually, you will need to install some additional
   - golang: version 1.8 or higher
   - libtensorflow: https://www.tensorflow.org/install/install_go or `make install-tensorflow`
   - govendor: https://github.com/kardianos/govendor or `make install-govendor`
-  - CUDA8+: required for building gpu-capable binaries
+  - CUDA9+: required for building gpu-capable binaries
 
 If you manage to get these and their recursive deps installed, you should now be able to call build
 without docker:

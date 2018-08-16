@@ -5,6 +5,7 @@ SUDO=sudo
 LIBTF_IMAGE=libtensorflow
 GRAPHPIPE_TF_IMAGE=graphpipe-tf
 DOCKER=docker
+MODEL_URL?=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.pb 
 
 ifeq ('$(USE_SUDO)', '0')
 	SUDO=
@@ -111,7 +112,7 @@ devserver:
         -e GOPATH=/go \
         -e CHOWN=$$(id -u):$$(id -g) \
         $(LIBTF_IMAGE):$(RUN_TYPE)-dev \
-        ./graphpipe-tf --model=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.pb \
+        ./graphpipe-tf --model=$(MODEL_URL) \
 		--listen=0.0.0.0:9000
 
 runtime-container:
@@ -128,7 +129,7 @@ runserver:
         -e https_proxy=$(https_proxy) \
         -p 9000:9000 \
         $(GRAPHPIPE_TF_IMAGE):$(RUN_TYPE) \
-        --model=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.pb \
+        --model=$(MODEL_URL) \
 		--listen=0.0.0.0:9000
 
 install-govendor:
