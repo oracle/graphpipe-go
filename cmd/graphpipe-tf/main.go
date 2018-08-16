@@ -440,6 +440,9 @@ func ntFromTensor(tensor *tf.Tensor) *graphpipe.NativeTensor {
 func getOutputRequests(c *tfContext, outputNames []string) ([]tf.Output, error) {
 	outputRequests := []tf.Output{}
 	for _, name := range outputNames {
+		if !strings.Contains(name, ":") {
+			name += ":0"
+		}
 		out, ok := c.outputs[name]
 		if !ok {
 			msg := "Could not find output '%s'"
