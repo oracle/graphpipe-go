@@ -38,8 +38,6 @@ in-docker:
 		-w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-tf \
 		-e http_proxy=$(http_proxy) \
 		-e https_proxy=$(https_proxy) \
-		-v $$(dirname $(SSH_AUTH_SOCK)):$$(dirname $(SSH_AUTH_SOCK)) \
-		-e SSH_AUTH_SOCK=$(SSH_AUTH_SOCK) \
 		-e USE_SUDO=0 \
 		-e GOPATH=/go \
 		-e CHOWN=$$(id -u):$$(id -g) \
@@ -79,7 +77,9 @@ gpu:
 	ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/libcuda.so.1
 
 copy-files-gpu:
-	# pass
+	mkdir -p lib
+	cp /root/.cache/bazel/_bazel_root/*/external/mkl_linux/lib/* lib/
+	cp /usr/local/lib/libtensorflow* lib/
 
 devshell:
 	docker run -it --rm \
