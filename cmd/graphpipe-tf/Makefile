@@ -90,7 +90,6 @@ devshell:
         -e http_proxy=$(http_proxy) \
         -e https_proxy=$(https_proxy) \
         -e GOPATH=/go \
-        -e CHOWN=$$(id -u):$$(id -g) \
         $(LIBTF_IMAGE):$(RUN_TYPE)-dev \
         /bin/bash
 
@@ -110,7 +109,6 @@ devserver:
         -e https_proxy=$(https_proxy) \
         -p 9000:9000 \
         -e GOPATH=/go \
-        -e CHOWN=$$(id -u):$$(id -g) \
         $(LIBTF_IMAGE):$(RUN_TYPE)-dev \
         ./graphpipe-tf --model=$(MODEL_URL) \
 		--listen=0.0.0.0:9000

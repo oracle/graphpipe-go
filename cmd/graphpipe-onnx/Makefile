@@ -61,7 +61,6 @@ devshell:
 		-e http_proxy=$(http_proxy) \
 		-e https_proxy=$(https_proxy) \
 		-e GOPATH=/go \
-		-e CHOWN=$$(id -u):$$(id -g) \
 		$(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
 		/bin/bash
 
@@ -73,7 +72,6 @@ devserver:
 		-e http_proxy=$(http_proxy) \
 		-e https_proxy=$(https_proxy) \
 		-e GOPATH=/go \
-		-e CHOWN=$$(id -u):$$(id -g) \
 		$(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
 		./graphpipe-onnx --model=$(ONNX_URL) --value-inputs=$(ONNX_VALUE_INPUTS_URL) --listen=0.0.0.0:9000
 
