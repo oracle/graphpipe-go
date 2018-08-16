@@ -5,6 +5,7 @@ SUDO=sudo
 LIBTF_IMAGE=libtensorflow
 GRAPHPIPE_TF_IMAGE=graphpipe-tf
 DOCKER=docker
+MODEL_URL?=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.pb 
 
 ifeq ('$(USE_SUDO)', '0')
 	SUDO=
@@ -31,22 +32,31 @@ endif
 
 .PHONY: $(NAME)
 
-$(NAME):
-	$(LD_STUBS) go build -ldflags '-X "main.ver=$(VERSION)" -X "main.sha=$(sha)"'
-
 in-docker:
+	docker inspect --type=image $(LIBTF_IMAGE):$(RUN_TYPE)-dev > /dev/null ||  make dev-container
 	docker run -it --rm \
 		-v $(PWD)/../../:/go/src/github.com/oracle/graphpipe-go \
 		-w /go/src/github.com/oracle/graphpipe-go/cmd/graphpipe-tf \
 		-e http_proxy=$(http_proxy) \
 		-e https_proxy=$(https_proxy) \
-		-v $$(dirname $(SSH_AUTH_SOCK)):$$(dirname $(SSH_AUTH_SOCK)) \
-		-e SSH_AUTH_SOCK=$(SSH_AUTH_SOCK) \
 		-e USE_SUDO=0 \
 		-e GOPATH=/go \
 		-e CHOWN=$$(id -u):$$(id -g) \
 		$(LIBTF_IMAGE):$(RUN_TYPE)-dev \
 		/usr/bin/make install-govendor deps $(RUN_TYPE) copy-files-$(RUN_TYPE) graphpipe-tf fix-perms
+
+check-go-version:
+	$(eval min_version := go1.8)
+	$(eval lesser_version=$(shell echo "`go version | cut -d " " -f3` ${min_version}" | tr " " "\n" | sort -s -t- -k 2,2nr |  sort -t. -s -k 1,1nr -k 2,2nr -k 3,3nr -k 4,4nr | tail -1))
+	@if [ "${min_version}" != "${lesser_version}" ]; then \
+		echo "minimum go version is ${min_version}.  You have ${lesser_version}"; \
+		exit 1;\
+	fi
+
+$(NAME): check-go-version
+	$(LD_STUBS) go build -ldflags '-X "main.ver=$(VERSION)" -X "main.sha=$(sha)"'
+
+local: $(NAME)
 
 cpu:
 	# pass
@@ -68,7 +78,9 @@ gpu:
 	ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/libcuda.so.1
 
 copy-files-gpu:
-	# pass
+	mkdir -p lib
+	cp /root/.cache/bazel/_bazel_root/*/external/mkl_linux/lib/* lib/
+	cp /usr/local/lib/libtensorflow* lib/
 
 devshell:
 	docker run -it --rm \
@@ -78,7 +90,6 @@ devshell:
         -e http_proxy=$(http_proxy) \
         -e https_proxy=$(https_proxy) \
         -e GOPATH=/go \
-        -e CHOWN=$$(id -u):$$(id -g) \
         $(LIBTF_IMAGE):$(RUN_TYPE)-dev \
         /bin/bash
 
@@ -98,9 +109,8 @@ devserver:
         -e https_proxy=$(https_proxy) \
         -p 9000:9000 \
         -e GOPATH=/go \
-        -e CHOWN=$$(id -u):$$(id -g) \
         $(LIBTF_IMAGE):$(RUN_TYPE)-dev \
-        ./graphpipe-tf --model=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.pb \
+        ./graphpipe-tf --model=$(MODEL_URL) \
 		--listen=0.0.0.0:9000
 
 runtime-container:
@@ -117,11 +127,8 @@ runserver:
         -e https_proxy=$(https_proxy) \
         -p 9000:9000 \
         $(GRAPHPIPE_TF_IMAGE):$(RUN_TYPE) \
-        --model=https://objectstorage.us-phoenix-1.oraclecloud.com/n/bmcskeppareuser/b/c4/o/squeezenet.pb \
+        --model=$(MODEL_URL) \
 		--listen=0.0.0.0:9000
-
-install-go:
-	apt install golang-go
 
 install-govendor:
 	@if [ ! -e $(GOPATH)/bin/govendor ]; then \

@@ -21,37 +21,37 @@ Our build system can output images in three configurations:
 You can switch between these configurations by setting the *RUN_TYPE* environment variable.
 
 ```
-    > export RUN_TYPE=gpu
+export RUN_TYPE=gpu
 ```
 
 In order to support streamlined development and deployment, each build configuration
 has 2 containers: one for development, and one for deployment.
 ```
-    > make dev-container # creates the base dev-container
-    > make in-docker # compiles the server inside the dev-container
-    > make runtime-container # compiles the runtime-container and injects build artifacts
+make dev-container  # compiles the server inside the dev-container
+make # compiles the server inside the dev-container
+make runtime-container # compiles the runtime-container and injects build artifacts
 ```
 
 Additionally, you can build all three of these steps at the same time:
 ```
-    > make all
+make all
 ```
 
 During development, it is usually sufficient to run the server from the development image.
 An example invocation of a development server can be invoked like this:
 ```
-    > make devserver  # observe the docker command that is output, and tweak it for your own testing
+make devserver  # observe the docker command that is output, and tweak it for your own testing
 ```
 
 Similarly, you can invoke a test instance of the deployment
 ```
-    > make runserver  # observe the docker command that is output, and tweak it for your own testing
+make runserver  # observe the docker command that is output, and tweak it for your own testing
 ```
 
 If things seem broken, try dropping into a shell in your dev-container to figure things out:
 
 ```
-    > make devshell
+make devshell
 ```
 
 ## Proxies
@@ -61,16 +61,17 @@ can forward this configuration to docker.
 ## Running the Server Manually
 If you want to run the server manually, you will need to install some additional dependencies:
 
+  - golang: version 1.8 or higher
   - libtensorflow: https://www.tensorflow.org/install/install_go or `make install-tensorflow`
   - govendor: https://github.com/kardianos/govendor or `make install-govendor`
-  - CUDA8+: required for building gpu-capable binaries
+  - CUDA9+: required for building gpu-capable binaries
 
-If you manage to get these and their recursive deps installed, you should now be able to call make
-with no arguments:
+If you manage to get these and their recursive deps installed, you should now be able to call build
+without docker:
 
 ```
-  export RUN_TYPE=cpu
-  make deps && make
+make deps
+make local
 ```
 
 
