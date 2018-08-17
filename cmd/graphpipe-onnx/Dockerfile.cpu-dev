@@ -53,5 +53,5 @@ RUN echo "/opt/intel/compilers_and_libraries_2018.3.222/linux/mkl/lib/intel64_li
 RUN cmake .. -DBLAS="MKL" -DUSE_NATIVE_ARCH=ON -DUSE_MKLDNN=1 -DBUILD_PYTHON=OFF
 RUN mkdir -p /home/ml/projects/
 RUN ln -s /pytorch /home/ml/projects/pytorch
-RUN make -j install
+RUN make -j `nproc` install
 RUN ldconfig
