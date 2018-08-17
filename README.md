@@ -1,5 +1,7 @@
 # graphpipe-go - GraphPipe for go
 
+[![wercker status](https://app.wercker.com/status/4c0651ec25ddf2f9a5c5cd6a3727265b/s/master "wercker status")](https://app.wercker.com/project/byKey/4c0651ec25ddf2f9a5c5cd6a3727265b) [![License: Unlicense](https://img.shields.io/badge/license-UPL-blue.svg)](https://opensource.org/licenses/UPL)
+
 `graphpipe-go` provides a variety of functions to help you easily serve
 and access ml models using the very speedy [`GraphPipe`](https://oracle.github.io/graphpipe/) protocol.
 
