@@ -27,7 +27,7 @@ RUN apt-get update &&  apt-get install -y bazel
 
 RUN yes "" | ./configure
 
-RUN bazel build --config=mkl --config=opt --config=monolithic //tensorflow:libtensorflow.so
+RUN bazel build --config=mkl --config=monolithic //tensorflow:libtensorflow.so
 RUN cp bazel-bin/tensorflow/libtensorflow.so /usr/local/lib
 RUN cp /root/.cache/bazel/_bazel_root/*/external/mkl_linux/lib/* /usr/local/lib
 RUN ldconfig

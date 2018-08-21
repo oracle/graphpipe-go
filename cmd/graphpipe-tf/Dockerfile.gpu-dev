@@ -30,7 +30,7 @@ ENV TF_NEED_MKL 1
 ENV TF_DOWNLOAD_MKL 1
 
 RUN tensorflow/tools/ci_build/builds/configured GPU
-RUN bazel build --config=mkl --config=cuda --config=opt --config=monolithic //tensorflow:libtensorflow.so
+RUN bazel build --config=mkl --config=cuda --config=monolithic //tensorflow:libtensorflow.so
 RUN cp bazel-bin/tensorflow/libtensorflow.so /usr/local/lib
 RUN cp /root/.cache/bazel/_bazel_root/*/external/mkl_linux/lib/* /usr/local/lib
 RUN ldconfig

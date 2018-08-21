@@ -15,7 +15,7 @@ RUN yum install --enablerepo ol7_optional_latest -y which patch && rm -rf /var/c
 RUN yum install --enablerepo ol7_optional_latest -y gcc-c++ && rm -rf /var/cache/yum/*
 
 RUN yes "" | ./configure
-RUN bazel build --config=mkl --config=opt --config=monolithic //tensorflow:libtensorflow.so
+RUN bazel build --config=mkl --config=monolithic //tensorflow:libtensorflow.so
 RUN cp bazel-bin/tensorflow/libtensorflow.so /usr/local/lib
 RUN cp /root/.cache/bazel/_bazel_root/*/external/mkl_linux/lib/* /usr/local/lib
 RUN ldconfig

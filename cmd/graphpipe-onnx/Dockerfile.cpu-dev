@@ -50,7 +50,7 @@ RUN apt-get install -y apt-transport-https
 RUN apt-get update && apt-get install -y intel-mkl-64bit-2018.3-051
 RUN echo "/opt/intel/compilers_and_libraries_2018.3.222/linux/mkl/lib/intel64_lin/" > /etc/ld.so.conf.d/intel_mkl.conf
 
-RUN cmake .. -DBLAS="MKL" -DUSE_NATIVE_ARCH=ON -DUSE_MKLDNN=1 -DBUILD_PYTHON=OFF
+RUN cmake .. -DBLAS="MKL" -DUSE_MKLDNN=1 -DBUILD_PYTHON=OFF
 RUN mkdir -p /home/ml/projects/
 RUN ln -s /pytorch /home/ml/projects/pytorch
 RUN make -j `nproc` install
