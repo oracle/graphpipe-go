@@ -73,7 +73,7 @@ devserver:
 		-e https_proxy=$(https_proxy) \
 		-e GOPATH=/go \
 		$(LIBCAFFE_IMAGE):$(RUN_TYPE)-dev \
-		./graphpipe-onnx --model=$(ONNX_URL) --value-inputs=$(ONNX_VALUE_INPUTS_URL) --listen=0.0.0.0:9000
+		./graphpipe-onnx --model=$(ONNX_URL) --value-inputs=$(ONNX_VALUE_INPUTS_URL) --listen=0.0.0.0:9000 --engine-count=10
 
 runserver:
 	$(DOCKER) run -it --rm \

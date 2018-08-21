@@ -36,7 +36,7 @@ RUN yum install --enablerepo ol7_developer_EPEL -y \
 RUN echo "/opt/intel/compilers_and_libraries_2018.2.199/linux/mkl/lib/intel64_lin/" > /etc/ld.so.conf.d/intel_mkl.conf
 RUN ldconfig
 
-RUN cmake3 .. -DBLAS="MKL" -DUSE_NATIVE_ARCH=ON -DBUILD_PYTHON=OFF
+RUN cmake3 .. -DBLAS="MKL" -DBUILD_PYTHON=OFF
 RUN make -j `nproc` install
 RUN ldconfig
 
