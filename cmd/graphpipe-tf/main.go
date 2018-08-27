@@ -149,20 +149,15 @@ func getSessionOpts() (*tf.SessionOptions, error) {
 
 func initializeMetadata(opts options, c *tfContext) *graphpipe.NativeMetadataResponse {
 	c.outputs = map[string]tf.Output{}
-	outputsThatAreInputs := map[string]tf.Output{}
+	outputsThatAreInputs := map[string]bool{}
 	ops := c.model.Graph.Operations()
 	opMap := map[string]tf.Operation{}
 	for _, op := range ops {
 		opMap[op.Name()] = op
 	}
 	for _, node := range c.graphDef.Node {
-		op := opMap[node.Name]
-		num := op.NumOutputs()
-		for i := 0; i < num; i++ {
-			output := op.Output(i)
-			for _, inp := range node.Input {
-				outputsThatAreInputs[inp] = output
-			}
+		for _, inp := range node.Input {
+			outputsThatAreInputs[strings.Split(inp, ":")[0]] = true
 		}
 	}
 	for _, node := range c.graphDef.Node {
@@ -173,14 +168,6 @@ func initializeMetadata(opts options, c *tfContext) *graphpipe.NativeMetadataRes
 			c.names = append(c.names, name)
 			output := op.Output(i)
 			c.outputs[name] = output
-			if op.Type() != "Const" {
-				if len(node.Input) == 0 {
-					c.defaultInputs = append(c.defaultInputs, name)
-				}
-				if _, present := outputsThatAreInputs[node.Name]; !present {
-					c.defaultOutputs = append(c.defaultOutputs, name)
-				}
-			}
 			t := toFlatDtype(output.DataType())
 			if t == graphpipefb.TypeNull {
 				logrus.Debugf("Unknown type for '%s': %v", name, output.DataType())
@@ -192,11 +179,20 @@ func initializeMetadata(opts options, c *tfContext) *graphpipe.NativeMetadataRes
 				logrus.Debugf("Unknown shape for '%s'", name)
 			}
 			c.shapes = append(c.shapes, shape)
+
+			if op.Type() != "Const" && t != graphpipefb.TypeNull {
+				if len(node.Input) == 0 {
+					c.defaultInputs = append(c.defaultInputs, name)
+				} else if _, present := outputsThatAreInputs[node.Name]; !present {
+					// register terminal outputs as default outputs
+					c.defaultOutputs = append(c.defaultOutputs, name)
+				}
+			}
 		}
 	}
 	meta := &graphpipe.NativeMetadataResponse{}
 	meta.Name = opts.model
-	meta.Description = "Implementation of tensorflow model server using graphpipe.  Use a graphpipe client to make requests to this server."
+	meta.Description = "Implementation of tensorflow model server using graphpipe.  Use a graphpipe client to make requests to this server.  Default Inputs: [" + strings.Join(c.defaultInputs, ", ") + "].  " + "Default Outputs: [" + strings.Join(c.defaultOutputs, ", ") + "]."
 	meta.Server = "graphpipe-tf"
 	meta.Version = version()
 
