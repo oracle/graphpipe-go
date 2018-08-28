@@ -11,29 +11,26 @@ import (
 	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
 )
 
-// Remote is the simple interface for making a remote model request.
-// It performs introspection and automatic type conversion on its inputs and outputs.
-// Optionally, you can specify inputName and outputName; if either of these
-// are missing it is up to the server to infer sane defaults for inputNames
-// and outputNames;
-func Remote(client *http.Client, uri string, in interface{}, inputName, outputName string) (interface{}, error) {
-	inputNames := []string{}
-	outputNames := []string{}
-	if inputName != "" {
-		inputNames = append(inputNames, inputName)
+// Remote is the simple function for making a remote model request with a
+// single input and output and no config.  It performs introspection and
+// automatic type conversion on its input and output.  It will use the server
+// defaults for input and output.
+func Remote(uri string, in interface{}) (interface{}, error) {
+	res, err := MultiRemote(http.DefaultClient, uri, "", []interface{}{in}, nil, nil)
+	if len(res) != 1 {
+		return nil, fmt.Errorf("%d outputs were returned. One was expected.", len(res))
 	}
-	if outputName != "" {
-		outputNames = append(outputNames, outputName)
-	}
-	res, err := MultiRemote(client, uri, []interface{}{in}, inputNames, outputNames)
 	return res[0], err
 }
 
-// MultiRemote is a simple interface for communicating with models
-// that have multiple inputs and outputs.  It is recommended that you
-// Specify inputNames and outputNames so that you can control input/output
-// ordering.  MultiRemote also performs type introspection for inputs and outputs.
-func MultiRemote(client *http.Client, uri string, ins []interface{}, inputNames, outputNames []string) ([]interface{}, error) {
+// MultiRemote is the complicated function for making a remote model request.
+// It supports multiple inputs and outputs, custom clients, and config strings.
+// If inputNames or outputNames is empty, it will use the default inputs and
+// outputs from the server.  For multiple inputs and outputs, it is recommended
+// that you Specify inputNames and outputNames so that you can control
+// input/output ordering.  MultiRemote also performs type introspection for
+// inputs and outputs.
+func MultiRemote(client *http.Client, uri string, config string, ins []interface{}, inputNames, outputNames []string) ([]interface{}, error) {
 	inputs := make([]*NativeTensor, len(ins))
 	for i := range ins {
 		var err error
@@ -46,7 +43,7 @@ func MultiRemote(client *http.Client, uri string, ins []interface{}, inputNames,
 		}
 	}
 
-	outputs, err := MultiRemoteRaw(client, uri, inputs, inputNames, outputNames)
+	outputs, err := MultiRemoteRaw(client, uri, config, inputs, inputNames, outputNames)
 	if err != nil {
 		logrus.Errorf("Failed to MultiRemoteRaw: %v", err)
 		return nil, err
@@ -64,8 +61,10 @@ func MultiRemote(client *http.Client, uri string, ins []interface{}, inputNames,
 }
 
 // MultiRemoteRaw is the actual implementation of the remote model
-// request using NativeTensor objects.
-func MultiRemoteRaw(client *http.Client, uri string, inputs []*NativeTensor, inputNames, outputNames []string) ([]*NativeTensor, error) {
+// request using NativeTensor objects. The raw call is provided
+// for requests that need optimal performance and do not need to
+// be converted into native go types.
+func MultiRemoteRaw(client *http.Client, uri string, config string, inputs []*NativeTensor, inputNames, outputNames []string) ([]*NativeTensor, error) {
 	b := fb.NewBuilder(1024)
 
 	inStrs := make([]fb.UOffsetT, len(inputNames))
@@ -106,10 +105,13 @@ func MultiRemoteRaw(client *http.Client, uri string, inputs []*NativeTensor, inp
 	}
 	inputTensors := b.EndVector(len(inputs))
 
+	configString := b.CreateString(config)
+
 	graphpipefb.InferRequestStart(b)
 	graphpipefb.InferRequestAddInputNames(b, inputNamesOffset)
 	graphpipefb.InferRequestAddOutputNames(b, outputNamesOffset)
 	graphpipefb.InferRequestAddInputTensors(b, inputTensors)
+	graphpipefb.InferRequestAddConfig(b, configString)
 	inferRequestOffset := graphpipefb.InferRequestEnd(b)
 	graphpipefb.RequestStart(b)
 	graphpipefb.RequestAddReqType(b, graphpipefb.ReqInferRequest)
