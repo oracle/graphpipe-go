@@ -23,22 +23,22 @@ has 2 containers: one for development, and one for deployment.
 
 Additionally, you can build all three of these steps at the same time:
 ```
-    > make all
+make all
 ```
 
 During development, it is usually sufficient to run the server from the development image.
 A development server can be invoked like this:
 ```
-    > make devserver  # observe the docker command that is output, and tweak it for your own testing
+make devserver  # observe the docker command that is output, and tweak it for your own testing
 ```
 
 Similarly, you can invoke a test instance of the deployment
 ```
-    > make runserver  # observe the docker command that is output, and tweak it for your own testing
+make runserver  # observe the docker command that is output, and tweak it for your own testing
 ```
 
 If things seem broken, try dropping into a shell in your dev-container to figure things out:
 
 ```
-    > make devshell
+make devshell
 ```
