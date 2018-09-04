@@ -37,7 +37,7 @@ type options struct {
 	listen    string
 	inputs    string
 	outputs   string
-	targetUrl string
+	targetURL string
 	batchSize int
 	timeout   int
 	workers   int
@@ -67,7 +67,7 @@ func main() {
 				cmd.Usage()
 				return
 			}
-			if len(opts.targetUrl) == 0 {
+			if len(opts.targetURL) == 0 {
 				cmdExitCode = 1
 				logrus.Infof("--target-url must be specified")
 				cmd.Usage()
@@ -98,7 +98,7 @@ func main() {
 	f.StringVarP(&opts.cacheDir, "cache-dir", "d", "~/.graphpipe", "directory for local cache state")
 	f.StringVarP(&opts.listen, "listen", "l", "127.0.0.1:10000", "listen string")
 	f.BoolVarP(&opts.cache, "cache", "c", false, "enable results caching")
-	f.StringVarP(&opts.targetUrl, "target-url", "", "", "upstream graphpipe server")
+	f.StringVarP(&opts.targetURL, "target-url", "", "", "upstream graphpipe server")
 	f.IntVarP(&opts.batchSize, "batch-size", "", 10, "batch size")
 	f.StringVarP(&opts.inputs, "inputs", "i", "", "comma seprated default inputs")
 	f.StringVarP(&opts.outputs, "outputs", "o", "", "comma separated default outputs")
@@ -172,7 +172,7 @@ func serve(opts options) error {
 	ctx := &bContext{}
 
 	meta := &graphpipe.NativeMetadataResponse{}
-	meta.Name = opts.targetUrl
+	meta.Name = opts.targetURL
 	meta.Description = "Graphpipe request batching process"
 	meta.Server = "graphpipe-batcher"
 	meta.Version = version()
@@ -253,7 +253,7 @@ func serve(opts options) error {
 				}
 				if len(batchErrors) >= 0 {
 					fixedData := []*ioData{}
-					for i, _ := range data {
+					for i := range data {
 						for _, idx := range batchErrors {
 							if i == idx {
 								break
@@ -277,10 +277,10 @@ func serve(opts options) error {
 					rowCounts := []int64{}
 
 					for _, io := range data {
-						for name, _ := range io.Inputs {
+						for name := range io.Inputs {
 							inputNames = append(inputNames, name)
 						}
-						for j, _ := range io.OutputNames {
+						for j := range io.OutputNames {
 							outputNames = append(outputNames, io.OutputNames[j])
 						}
 						break
@@ -308,7 +308,7 @@ func serve(opts options) error {
 						inputs = append(inputs, &nt)
 					}
 					//ship it!
-					tensors, err := graphpipe.MultiRemoteRaw(client, opts.targetUrl, "", inputs, inputNames, outputNames)
+					tensors, err := graphpipe.MultiRemoteRaw(client, opts.targetURL, "", inputs, inputNames, outputNames)
 					if err != nil {
 						for _, io := range data {
 							io.Error = err

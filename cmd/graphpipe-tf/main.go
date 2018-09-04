@@ -360,7 +360,7 @@ func serve(opts options) error {
 	}
 
 	if missingIO {
-		return fmt.Errorf("Could not find some inputs and/or outputs.  Aborting.")
+		return fmt.Errorf("Could not find some inputs and/or outputs - Aborting")
 	}
 
 	logrus.Infof("Using default inputs %s", dIn)

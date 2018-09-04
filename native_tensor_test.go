@@ -54,7 +54,7 @@ func TestInitWithData(t *testing.T) {
 	dataLen := int(255)
 	data := make([]byte, dataLen)
 
-	for i, _ := range data {
+	for i := range data {
 		data[i] = byte(i % dataLen)
 	}
 
@@ -74,7 +74,7 @@ func TestInitWithInvalidData(t *testing.T) {
 	dataLen := int(255)
 	data := make([]byte, dataLen)
 
-	for i, _ := range data {
+	for i := range data {
 		data[i] = byte(i % dataLen)
 	}
 
