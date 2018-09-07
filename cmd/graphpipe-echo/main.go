@@ -10,7 +10,7 @@ func main() {
 	useCache := false           // toggle caching on/off
 	inShapes := [][]int64(nil)  // Optionally set input shapes
 	outShapes := [][]int64(nil) // Optionally set output shapes
-	if err := graphpipe.Serve("0.0.0.0:9000", useCache, apply, inShapes, outShapes); err != nil {
+	if err := graphpipe.Serve("0.0.0.0:9000", "0.0.0.0:9001", useCache, apply, inShapes, outShapes); err != nil {
 		logrus.Errorf("Failed to serve: %v", err)
 	}
 }

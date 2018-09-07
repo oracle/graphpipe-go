@@ -38,15 +38,16 @@ func version() string {
 }
 
 type options struct {
-	verbose  bool
-	version  bool
-	cache    bool
-	cacheDir string
-	listen   string
-	model    string
-	inputs   string
-	shape    string
-	outputs  string
+	verbose    bool
+	version    bool
+	cache      bool
+	cacheDir   string
+	listen     string
+	listenGRPC string
+	model      string
+	inputs     string
+	shape      string
+	outputs    string
 }
 
 func main() {
@@ -90,6 +91,7 @@ func main() {
 	f := cmd.Flags()
 	f.StringVarP(&opts.cacheDir, "cache-dir", "d", "~/.graphpipe", "directory for local cache state")
 	f.StringVarP(&opts.listen, "listen", "l", "127.0.0.1:9000", "listen string")
+	f.StringVarP(&opts.listenGRPC, "listen-grpc", "", "127.0.0.1:9001", "listen string")
 	f.StringVarP(&opts.model, "model", "m", "", "tensorflow model to load.  Accepts local file or http(s) url.")
 	f.StringVarP(&opts.inputs, "inputs", "i", "", "comma seprated default inputs")
 	f.StringVarP(&opts.outputs, "outputs", "o", "", "comma separated default outputs")
@@ -368,6 +370,7 @@ func serve(opts options) error {
 
 	serveOpts := &graphpipe.ServeRawOptions{
 		Listen:         opts.listen,
+		ListenGRPC:     opts.listenGRPC,
 		CacheFile:      cachePath,
 		Meta:           c.meta,
 		DefaultInputs:  dIn,
