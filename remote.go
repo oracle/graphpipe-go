@@ -18,7 +18,7 @@ import (
 func Remote(uri string, in interface{}) (interface{}, error) {
 	res, err := MultiRemote(http.DefaultClient, uri, "", []interface{}{in}, nil, nil)
 	if len(res) != 1 {
-		return nil, fmt.Errorf("%d outputs were returned. One was expected.", len(res))
+		return nil, fmt.Errorf("%d outputs were returned - one was expected", len(res))
 	}
 	return res[0], err
 }

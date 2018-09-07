@@ -222,10 +222,9 @@ func Handler(c *appContext, w http.ResponseWriter, r *http.Request) error {
 	if r.Method == "GET" {
 		if c.getHandler != nil {
 			return c.getHandler(w, r, body)
-		} else {
-			http.Error(w, "Unhandled GET", http.StatusInternalServerError)
-			return nil
 		}
+		http.Error(w, "Unhandled GET", http.StatusInternalServerError)
+		return nil
 	}
 
 	request := graphpipefb.GetRootAsRequest(body, 0)

@@ -20,6 +20,13 @@ build:
           # (cd cmd/graphpipe-onnx && make deps)
 
     - script:
+        name: install graphpipe-batcher deps
+        code: |
+          export USE_SUDO=0
+          export TF_TYPE=cpu
+          (cd cmd/graphpipe-batcher && make deps)
+
+    - script:
         name: go vet
         code: |
           # onnx is incomplete, skip it for now
