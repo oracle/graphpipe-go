@@ -6,7 +6,7 @@ import (
 )
 
 // BuildInferRequest constructs an InferRequest flatbuffer from NativeTensor
-func BuildInferRequest(inputTensors []*NativeTensor, inputs, outputs []string) *fb.Builder {
+func BuildInferRequest(config string, inputTensors []*NativeTensor, inputs, outputs []string) *fb.Builder {
 	b := fb.NewBuilder(1024)
 	inStrs := make([]fb.UOffsetT, len(inputs))
 	outStrs := make([]fb.UOffsetT, len(outputs))
@@ -24,12 +24,12 @@ func BuildInferRequest(inputTensors []*NativeTensor, inputs, outputs []string) *
 	for _, offset := range inStrs {
 		b.PrependUOffsetT(offset)
 	}
-	inputNames := b.EndVector(len(inputs))
+	inputNamesOffset := b.EndVector(len(inputs))
 	graphpipefb.InferRequestStartOutputNamesVector(b, len(outputs))
 	for _, offset := range outStrs {
 		b.PrependUOffsetT(offset)
 	}
-	outputNames := b.EndVector(len(outputs))
+	outputNamesOffset := b.EndVector(len(outputs))
 
 	inputOffsets := make([]fb.UOffsetT, len(inputTensors))
 	for i := 0; i < len(inputTensors); i++ {
@@ -43,10 +43,12 @@ func BuildInferRequest(inputTensors []*NativeTensor, inputs, outputs []string) *
 	}
 	inputTensorsOffset := b.EndVector(1)
 
+	configString := b.CreateString(config)
 	graphpipefb.InferRequestStart(b)
-	graphpipefb.InferRequestAddInputNames(b, inputNames)
-	graphpipefb.InferRequestAddOutputNames(b, outputNames)
+	graphpipefb.InferRequestAddInputNames(b, inputNamesOffset)
+	graphpipefb.InferRequestAddOutputNames(b, outputNamesOffset)
 	graphpipefb.InferRequestAddInputTensors(b, inputTensorsOffset)
+	graphpipefb.InferRequestAddConfig(b, configString)
 	inferRequestOffset := graphpipefb.InferRequestEnd(b)
 	b.Finish(inferRequestOffset)
 	return b
