@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-var addr = "127.0.0.1:9001"
+var addr = "127.0.0.1:9000"
 
 /// Example of a client that talks to graphpipe-echo
 func main() {
@@ -19,7 +19,7 @@ func main() {
 	v := []int64{2, 2}
 	err := nt.InitSimple(v)
 	inputTensors = append(inputTensors, nt)
-	b := graphpipe.BuildInferRequest(inputTensors, nil, nil)
+	b := graphpipe.BuildInferRequest("", inputTensors, nil, nil)
 
 	conn, err := grpc.Dial(addr, grpc.WithInsecure(), grpc.WithCodec(fb.FlatbuffersCodec{}))
 	if err != nil {

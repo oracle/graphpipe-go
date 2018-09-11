@@ -8,6 +8,8 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -97,10 +99,9 @@ func (l *counterListenerConn) Close() error {
 // into native datatypes based on the shapes passed in to this function
 // plus any additional shapes implied by your apply function.
 // If cache is true, will attempt to cache using cache.db as cacheFile
-func Serve(listen, listenGRPC string, cache bool, apply interface{}, inShapes, outShapes [][]int64) error {
+func Serve(listen string, cache bool, apply interface{}, inShapes, outShapes [][]int64) error {
 	opts := BuildSimpleApply(apply, inShapes, outShapes)
 	opts.Listen = listen
-	opts.ListenGRPC = listenGRPC
 	if cache {
 		opts.CacheFile = "cache.db"
 	}
@@ -113,7 +114,6 @@ type GetHandlerFunc func(http.ResponseWriter, *http.Request, []byte) error
 // ServeRawOptions is just a call parameter struct.
 type ServeRawOptions struct {
 	Listen         string
-	ListenGRPC     string
 	CacheFile      string
 	Meta           *NativeMetadataResponse
 	DefaultInputs  []string
@@ -122,7 +122,7 @@ type ServeRawOptions struct {
 	GetHandler     GetHandlerFunc
 }
 
-// ServeRaw starts the model server. The listen address and port can be specified
+// ServeRaw starts the model server. The listen url can be specified
 // with the listen parameter. If cacheFile is not "" then caches will be stored
 // using it. context will be passed back to the handler
 func ServeRaw(opts *ServeRawOptions) error {
@@ -144,31 +144,43 @@ func ServeRaw(opts *ServeRawOptions) error {
 		}
 		defer c.db.Close()
 	}
-
-	if len(opts.ListenGRPC) > 0 {
-		go func() {
-			listen, err := net.Listen("tcp", opts.ListenGRPC)
-			if err != nil {
-				logrus.Errorf("Error trying to Listen for GRPC: %v", err)
-			}
-
-			logrus.Infof("Listening on '%s'", opts.ListenGRPC)
-			ser := grpc.NewServer(grpc.CustomCodec(flatbuffers.FlatbuffersCodec{}))
-			graphpipefb.RegisterGraphpipeServiceServer(ser, c)
-			if err := ser.Serve(listen); err != nil {
-				logrus.Fatalf("Failed to serve: %v", err)
-				return
-			}
-		}()
+	listenURL := opts.Listen
+	if _, err := strconv.Atoi(listenURL[:1]); err == nil {
+		listenURL = "http://" + listenURL
+		logrus.Infof("Converted listen param from %s to %s", opts.Listen, listenURL)
 	}
 
-	setupLifecycleRoutes(c)
-	http.Handle("/", appHandler{c, Handler})
-	logrus.Infof("Listening on '%s'", opts.Listen)
-	err = ListenAndServe(opts.Listen, nil)
+	u, err := url.Parse(listenURL)
 	if err != nil {
-		logrus.Errorf("Error trying to ListenAndServe: %v", err)
 		return err
+	}
+
+	logrus.Infof("Attempting to serve with protocol %s on %s", u.Scheme, u.Host)
+	switch u.Scheme {
+	case "http":
+		setupLifecycleRoutes(c)
+		http.Handle("/", appHandler{c, Handler})
+		logrus.Infof("Listening with %s on '%s'", u.Scheme, u.Host)
+		err = ListenAndServe(u.Host, nil)
+		if err != nil {
+			logrus.Errorf("Error trying to ListenAndServe: %v", err)
+			return err
+		}
+	case "grpc+http":
+		listen, err := net.Listen("tcp", u.Host)
+		if err != nil {
+			logrus.Errorf("Error trying to Listen for GRPC: %v", err)
+		}
+
+		logrus.Infof("Listening with %s on '%s'", u.Scheme, u.Host)
+		ser := grpc.NewServer(grpc.CustomCodec(flatbuffers.FlatbuffersCodec{}))
+		graphpipefb.RegisterGraphpipeServiceServer(ser, c)
+		if err := ser.Serve(listen); err != nil {
+			logrus.Fatalf("Failed to serve: %v", err)
+			return err
+		}
+	default:
+		logrus.Errorf("Couldn't serve protocol %s", u.Scheme)
 	}
 
 	return nil
