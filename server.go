@@ -122,6 +122,20 @@ type ServeRawOptions struct {
 	GetHandler     GetHandlerFunc
 }
 
+func parseURL(listen string) (string, string, error) {
+	listenURL := listen
+	if _, err := strconv.Atoi(listenURL[:1]); err == nil {
+		listenURL = "http://" + listenURL
+		logrus.Infof("Converted listen param from %s to %s", listen, listenURL)
+	}
+
+	u, err := url.Parse(listenURL)
+	if err != nil {
+		return "", "", err
+	}
+	return u.Scheme, u.Host, nil
+}
+
 // ServeRaw starts the model server. The listen url can be specified
 // with the listen parameter. If cacheFile is not "" then caches will be stored
 // using it. context will be passed back to the handler
@@ -136,6 +150,7 @@ func ServeRaw(opts *ServeRawOptions) error {
 		isReady:        1,
 		isAlive:        1,
 	}
+
 	if opts.CacheFile != "" {
 		c.db, err = bolt.Open(opts.CacheFile, 0600, &bolt.Options{Timeout: 1 * time.Second})
 		if err != nil {
@@ -144,35 +159,40 @@ func ServeRaw(opts *ServeRawOptions) error {
 		}
 		defer c.db.Close()
 	}
-	listenURL := opts.Listen
-	if _, err := strconv.Atoi(listenURL[:1]); err == nil {
-		listenURL = "http://" + listenURL
-		logrus.Infof("Converted listen param from %s to %s", opts.Listen, listenURL)
-	}
 
-	u, err := url.Parse(listenURL)
+	scheme, ipPort, err := parseURL(opts.Listen)
 	if err != nil {
 		return err
 	}
 
-	logrus.Infof("Attempting to serve with protocol %s on %s", u.Scheme, u.Host)
-	switch u.Scheme {
+	host, _, err := net.SplitHostPort(ipPort)
+	if err != nil {
+		logrus.Errorf("Could not find port in %s", ipPort)
+		return err
+	}
+
+	if net.ParseIP(host) == nil {
+		logrus.Errorf("Can only bind ips for serving.  Found ip %s", host)
+	}
+
+	logrus.Infof("Attempting to serve with protocol %s on %s", scheme, ipPort)
+	switch scheme {
 	case "http":
 		setupLifecycleRoutes(c)
 		http.Handle("/", appHandler{c, Handler})
-		logrus.Infof("Listening with %s on '%s'", u.Scheme, u.Host)
-		err = ListenAndServe(u.Host, nil)
+		logrus.Infof("Listening with %s on '%s'", scheme, ipPort)
+		err = ListenAndServe(ipPort, nil)
 		if err != nil {
 			logrus.Errorf("Error trying to ListenAndServe: %v", err)
 			return err
 		}
 	case "grpc+http":
-		listen, err := net.Listen("tcp", u.Host)
+		listen, err := net.Listen("tcp", ipPort)
 		if err != nil {
 			logrus.Errorf("Error trying to Listen for GRPC: %v", err)
 		}
 
-		logrus.Infof("Listening with %s on '%s'", u.Scheme, u.Host)
+		logrus.Infof("Listening with %s on '%s'", scheme, ipPort)
 		ser := grpc.NewServer(grpc.CustomCodec(flatbuffers.FlatbuffersCodec{}))
 		graphpipefb.RegisterGraphpipeServiceServer(ser, c)
 		if err := ser.Serve(listen); err != nil {
@@ -180,7 +200,7 @@ func ServeRaw(opts *ServeRawOptions) error {
 			return err
 		}
 	default:
-		logrus.Errorf("Couldn't serve protocol %s", u.Scheme)
+		logrus.Errorf("Couldn't serve protocol %s", scheme)
 	}
 
 	return nil

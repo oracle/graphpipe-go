@@ -6,7 +6,7 @@ import (
 )
 
 // BuildInferRequest constructs an InferRequest flatbuffer from NativeTensor
-func BuildInferRequest(config string, inputTensors []*NativeTensor, inputs, outputs []string) *fb.Builder {
+func BuildInferRequest(config string, inputTensors []*NativeTensor, inputs, outputs []string) (*fb.Builder, fb.UOffsetT) {
 	b := fb.NewBuilder(1024)
 	inStrs := make([]fb.UOffsetT, len(inputs))
 	outStrs := make([]fb.UOffsetT, len(outputs))
@@ -15,6 +15,7 @@ func BuildInferRequest(config string, inputTensors []*NativeTensor, inputs, outp
 		inStr := b.CreateString(inputs[i])
 		inStrs[i] = inStr
 	}
+
 	for i := range outputs {
 		outStr := b.CreateString(outputs[i])
 		outStrs[i] = outStr
@@ -50,8 +51,7 @@ func BuildInferRequest(config string, inputTensors []*NativeTensor, inputs, outp
 	graphpipefb.InferRequestAddInputTensors(b, inputTensorsOffset)
 	graphpipefb.InferRequestAddConfig(b, configString)
 	inferRequestOffset := graphpipefb.InferRequestEnd(b)
-	b.Finish(inferRequestOffset)
-	return b
+	return b, inferRequestOffset
 }
 
 // ParseInferResponse constructs a NativeTensor from flatbuffer
@@ -75,8 +75,8 @@ func ParseInferResponse(inferResponse *graphpipefb.InferResponse) []*NativeTenso
 }
 
 // BuildMetadataRequest constructs flatbuffer from NativeMetadataRequest
-func BuildMetadataRequest() *fb.Builder {
-	b := fb.NewBuilder(0)
+func BuildMetadataRequest() (*fb.Builder, fb.UOffsetT) {
+	b := fb.NewBuilder(1024)
 	graphpipefb.MetadataRequestStart(b)
 	metaReq := graphpipefb.MetadataRequestEnd(b)
 
@@ -84,8 +84,7 @@ func BuildMetadataRequest() *fb.Builder {
 	graphpipefb.RequestAddReq(b, metaReq)
 	graphpipefb.RequestAddReqType(b, graphpipefb.ReqMetadataRequest)
 	req := graphpipefb.RequestEnd(b)
-	b.Finish(req)
-	return b
+	return b, req
 }
 
 func parseIO(io *graphpipefb.IOMetadata) NativeIOMetadata {
