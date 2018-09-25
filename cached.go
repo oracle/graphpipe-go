@@ -16,6 +16,7 @@ import (
 	"github.com/Sirupsen/logrus"
 	bolt "github.com/coreos/bbolt"
 	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
+	"sync"
 )
 
 const (
@@ -110,7 +111,12 @@ func (t *Nt) tensorFromIndexes(indexes []int) *NativeTensor {
 	return nt
 }
 
-func getKey(c *appContext, inputs []*Nt, index int) []byte {
+type hashPair struct {
+	index int
+	hash  []byte
+}
+
+func getKey(inputs []*Nt, index int) []byte {
 	numInputs := len(inputs)
 	if numInputs == 0 {
 		return []byte(emptyKey)
@@ -377,7 +383,7 @@ func getInputTensors(req *graphpipefb.InferRequest) ([]*NativeTensor, error) {
 		tensor := &graphpipefb.Tensor{}
 
 		if !req.InputTensors(tensor, i) {
-			err := fmt.Errorf("Bad input tensor")
+			err := fmt.Errorf("Bad input tensor #%d", i)
 			return nil, err
 		}
 
@@ -409,8 +415,19 @@ func getResultsCached(c *appContext, requestContext *RequestContext, req *graphp
 	}
 
 	keys := make([][]byte, numChunks)
+	ch := make(chan hashPair, numChunks)
+	var wg sync.WaitGroup
+	wg.Add(numChunks)
 	for i := 0; i < numChunks; i++ {
-		keys[i] = getKey(c, inputs, i)
+		go func(i int) {
+			ch <- hashPair{i, getKey(inputs, i)}
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
+	close(ch)
+	for elem := range ch {
+		keys[elem.index] = elem.hash
 	}
 
 	outputNames, err := getOutputNames(c, req)

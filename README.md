@@ -49,11 +49,10 @@ func MultiRemote(client *http.Client, uri string, config string, ins []interface
 // request using NativeTensor objects. The raw call is provided
 // for requests that need optimal performance and do not need to
 // be converted into native go types.
-func MultiRemoteRaw(client *http.Client, uri string, config string, inputs []*NativeTensor, inputNames, outputNames []string) ([]*NativeTensor, error) {
+func MultiRemoteRaw(client graphpipe.Client, uri string, config string, inputs []*NativeTensor, inputNames, outputNames []string) ([]*NativeTensor, error) {
 ```
-In similar fashion to the serving model, the client for making remote
-calls is made up of three functions, Remote, MultiRemote, and
-MultiRemoteRaw.
+In similar fashion to the serving model, the API for making remote
+calls has three functions (Remote, MultiRemote, and MultiRemoteRaw).
 
 The functions range from simple to complex. The first three of those will
 convert your native Go types into tensors and back, while the last one uses

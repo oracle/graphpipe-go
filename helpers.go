@@ -14,6 +14,9 @@ import (
 	fb "github.com/google/flatbuffers/go"
 
 	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
+	"net"
+	"encoding/binary"
+	"io"
 )
 
 // Serialize writes a builder object to a byte array
@@ -470,3 +473,23 @@ func buildTensorRaw(b *fb.Builder, dataFb, stringValFb fb.UOffsetT, shape []int6
 	}
 	return graphpipefb.TensorEnd(b)
 }
+
+func ReadInt(fd *net.Conn) (uint32, error) {
+	buf := make([]byte, 4)
+	_, err := io.ReadFull(*fd, buf)
+	if err != nil {
+		return 0, err
+	}
+	num := binary.LittleEndian.Uint32(buf)
+	return num, nil
+}
+
+func WriteInt(fd *net.Conn, num uint32) error {
+	bytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(bytes, num)
+	_, err := (*fd).Write(bytes)
+	return err
+}
+
+
+
