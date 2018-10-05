@@ -19,7 +19,7 @@ ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/g
 RUN go get -u github.com/kardianos/govendor
 RUN git clone https://github.com/tensorflow/tensorflow /tensorflow
 WORKDIR /tensorflow
-RUN git checkout v1.8.0
+RUN git pull && git checkout v1.11.0
 
 RUN echo "deb [arch=amd64] http://storage.googleapis.com/bazel-apt stable jdk1.8" | tee /etc/apt/sources.list.d/bazel.list
 RUN curl https://bazel.build/bazel-release.pub.gpg |  apt-key add -
