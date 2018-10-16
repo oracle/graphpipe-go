@@ -9,7 +9,7 @@ RUN go get -u github.com/kardianos/govendor
 
 RUN git clone https://github.com/tensorflow/tensorflow /tensorflow
 WORKDIR /tensorflow
-RUN git checkout v1.8.0
+RUN git pull && git checkout v1.11.0
 
 RUN yum install --enablerepo ol7_optional_latest -y which patch && rm -rf /var/cache/yum/*
 RUN yum install --enablerepo ol7_optional_latest -y gcc-c++ && rm -rf /var/cache/yum/*
