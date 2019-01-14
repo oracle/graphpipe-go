@@ -1,7 +1,7 @@
 /*
 ** Copyright © 2018, Oracle and/or its affiliates. All rights reserved.
 ** Licensed under the Universal Permissive License v 1.0 as shown at http://oss.oracle.com/licenses/upl.
-*/
+ */
 
 package main
 
@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -22,6 +23,10 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/spf13/cobra"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	graphpipe "github.com/oracle/graphpipe-go"
 	tfproto "github.com/oracle/graphpipe-go/cmd/graphpipe-tf/internal/github.com/tensorflow/tensorflow/tensorflow/go/core/framework"
 	cproto "github.com/oracle/graphpipe-go/cmd/graphpipe-tf/internal/github.com/tensorflow/tensorflow/tensorflow/go/core/protobuf"
@@ -274,6 +279,33 @@ func readModel(uri string) ([]byte, error) {
 			return nil, err
 		}
 		return ioutil.ReadAll(response.Body)
+	}
+	if strings.HasPrefix(uri, "s3://") {
+		u, err := url.Parse(uri)
+		if err != nil {
+			logrus.Errorf("Failed to parse uri '%s': %v", uri, err)
+			return nil, err
+		}
+		bucket := u.Host
+		item := u.Path
+		sess, err := session.NewSession()
+		if err != nil {
+			logrus.Errorf("Failed to create s3 session %v", err)
+			return nil, err
+		}
+		downloader := s3manager.NewDownloader(sess)
+		buf := &aws.WriteAtBuffer{}
+		_, err = downloader.Download(buf,
+			&s3.GetObjectInput{
+				Bucket: aws.String(bucket),
+				Key:    aws.String(item),
+			})
+		if err != nil {
+			logrus.Errorf("Unable to download item %q, %v", item, err)
+			return nil, err
+		}
+		return buf.Bytes(), nil
+
 	}
 	return ioutil.ReadFile(uri)
 }
