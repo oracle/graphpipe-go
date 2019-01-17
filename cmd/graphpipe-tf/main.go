@@ -190,7 +190,7 @@ func initializeMetadata(opts options, c *tfContext) *graphpipe.NativeMetadataRes
 			}
 			c.shapes = append(c.shapes, shape)
 
-			if op.Type() != "Const" && t != graphpipefb.TypeNull {
+			if op.Type() != "Const" && op.Type() != "CheckNumerics" && t != graphpipefb.TypeNull {
 				if len(node.Input) == 0 {
 					c.defaultInputs = append(c.defaultInputs, name)
 				} else if _, present := outputsThatAreInputs[node.Name]; !present {
