@@ -1,7 +1,7 @@
 /*
 ** Copyright © 2018, Oracle and/or its affiliates. All rights reserved.
 ** Licensed under the Universal Permissive License v 1.0 as shown at http://oss.oracle.com/licenses/upl.
-*/
+ */
 
 package main
 
@@ -269,6 +269,8 @@ func serve(opts options) error {
 			for _, engine_ctx := range c2c.CEngineCtxs {
 				C.c2_engine_register_input(engine_ctx, C.CString(k), (*C.int64_t)(&dims[0]), (C.int(len(dims))), C.int(dtype))
 			}
+		} else {
+			logrus.Fatalf("Invalid value for value_input with key: %s.  Format should be {\"k\": [dtype, [dim1, dim2, ... ]]}, eg {\"k\": [1, [1, 3, 217, 217]]}", k)
 		}
 	}
 
