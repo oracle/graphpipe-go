@@ -13,13 +13,18 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
+	"strconv"
 	"sync/atomic"
 	"time"
 
 	"github.com/Sirupsen/logrus"
 	bolt "github.com/coreos/bbolt"
 	fb "github.com/google/flatbuffers/go"
+	flatbuffers "github.com/google/flatbuffers/go"
 	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 )
 
 // Error is our wrapper around the error interface.
@@ -122,7 +127,21 @@ type ServeRawOptions struct {
 	GetHandler     GetHandlerFunc
 }
 
-// ServeRaw starts the model server. The listen address and port can be specified
+func parseURL(listen string) (string, string, error) {
+	listenURL := listen
+	if _, err := strconv.Atoi(listenURL[:1]); err == nil {
+		listenURL = "http://" + listenURL
+		logrus.Infof("Converted listen param from %s to %s", listen, listenURL)
+	}
+
+	u, err := url.Parse(listenURL)
+	if err != nil {
+		return "", "", err
+	}
+	return u.Scheme, u.Host, nil
+}
+
+// ServeRaw starts the model server. The listen url can be specified
 // with the listen parameter. If cacheFile is not "" then caches will be stored
 // using it. context will be passed back to the handler
 func ServeRaw(opts *ServeRawOptions) error {
@@ -136,6 +155,7 @@ func ServeRaw(opts *ServeRawOptions) error {
 		isReady:        1,
 		isAlive:        1,
 	}
+
 	if opts.CacheFile != "" {
 		c.db, err = bolt.Open(opts.CacheFile, 0600, &bolt.Options{Timeout: 1 * time.Second})
 		if err != nil {
@@ -144,13 +164,48 @@ func ServeRaw(opts *ServeRawOptions) error {
 		}
 		defer c.db.Close()
 	}
-	setupLifecycleRoutes(c)
-	http.Handle("/", appHandler{c, Handler})
-	logrus.Infof("Listening on '%s'", opts.Listen)
-	err = ListenAndServe(opts.Listen, nil)
+
+	scheme, ipPort, err := parseURL(opts.Listen)
 	if err != nil {
-		logrus.Errorf("Error trying to ListenAndServe: %v", err)
 		return err
+	}
+
+	host, _, err := net.SplitHostPort(ipPort)
+	if err != nil {
+		logrus.Errorf("Could not find port in %s", ipPort)
+		return err
+	}
+
+	if net.ParseIP(host) == nil {
+		logrus.Errorf("Can only bind ips for serving.  Found ip %s", host)
+	}
+
+	logrus.Infof("Attempting to serve with protocol %s on %s", scheme, ipPort)
+	switch scheme {
+	case "http":
+		setupLifecycleRoutes(c)
+		http.Handle("/", appHandler{c, Handler})
+		logrus.Infof("Listening with %s on '%s'", scheme, ipPort)
+		err = ListenAndServe(ipPort, nil)
+		if err != nil {
+			logrus.Errorf("Error trying to ListenAndServe: %v", err)
+			return err
+		}
+	case "grpc+http":
+		listen, err := net.Listen("tcp", ipPort)
+		if err != nil {
+			logrus.Errorf("Error trying to Listen for GRPC: %v", err)
+		}
+
+		logrus.Infof("Listening with %s on '%s'", scheme, ipPort)
+		ser := grpc.NewServer(grpc.CustomCodec(flatbuffers.FlatbuffersCodec{}))
+		graphpipefb.RegisterGraphpipeServiceServer(ser, c)
+		if err := ser.Serve(listen); err != nil {
+			logrus.Fatalf("Failed to serve: %v", err)
+			return err
+		}
+	default:
+		logrus.Errorf("Couldn't serve protocol %s", scheme)
 	}
 
 	return nil
@@ -217,6 +272,86 @@ func (ah appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logrus.Infof("Request for %s took %s", r.URL.Path, duration)
 }
 
+func safeGetResults(c *appContext, requestContext *RequestContext, inferRequest *graphpipefb.InferRequest) (outputs []*NativeTensor, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			msg := fmt.Sprintf("panic recovered: %s", r)
+			logrus.Errorf(msg)
+			err = errors.New(msg)
+		}
+	}()
+
+	if c.db == nil {
+		outputs, err = getResults(c, requestContext, inferRequest)
+	} else {
+		outputs, err = getResultsCached(c, requestContext, inferRequest)
+	}
+	return outputs, err
+}
+
+func (c *appContext) _Infer(inferRequest *graphpipefb.InferRequest, requestContext *RequestContext) (*flatbuffers.Builder, error) {
+	var outputs []*NativeTensor
+	var err error
+	outputs, err = safeGetResults(c, requestContext, inferRequest)
+
+	if requestContext.CleanupFunc != nil {
+		defer requestContext.CleanupFunc()
+	}
+
+	b := requestContext.builder
+
+	var errOffset flatbuffers.UOffsetT
+	if err != nil {
+		errStr := b.CreateString(err.Error())
+		graphpipefb.ErrorStart(b)
+		graphpipefb.ErrorAddCode(b, 1)
+		graphpipefb.ErrorAddMessage(b, errStr)
+		offset := graphpipefb.ErrorEnd(b)
+		graphpipefb.InferResponseStartErrorsVector(b, 1)
+		b.PrependUOffsetT(offset)
+		errOffset = b.EndVector(1)
+	}
+
+	outputOffsets := make([]fb.UOffsetT, len(outputs))
+	for i := 0; i < len(outputs); i++ {
+		outputOffsets[i] = outputs[i].Build(b)
+	}
+
+	graphpipefb.InferResponseStartOutputTensorsVector(b, len(outputOffsets))
+	for i := len(outputOffsets) - 1; i >= 0; i-- {
+		offset := outputOffsets[i]
+		b.PrependUOffsetT(offset)
+	}
+
+	tensors := b.EndVector(len(outputOffsets))
+	graphpipefb.InferResponseStart(b)
+	graphpipefb.InferResponseAddOutputTensors(b, tensors)
+
+	if errOffset != 0 {
+		graphpipefb.InferResponseAddErrors(b, errOffset)
+	}
+
+	offset := graphpipefb.InferResponseEnd(b)
+	b.Finish(offset)
+	return b, nil
+}
+
+func (c *appContext) Infer(context context.Context, inferRequest *graphpipefb.InferRequest) (*flatbuffers.Builder, error) {
+	requestContext := &RequestContext{
+		builder: fb.NewBuilder(1024),
+	}
+
+	b, err := c._Infer(inferRequest, requestContext)
+	return b, err
+}
+
+func (c *appContext) Metadata(context context.Context, in *graphpipefb.MetadataRequest) (*flatbuffers.Builder, error) {
+	b := fb.NewBuilder(1024)
+	offset := c.meta.Build(b)
+	b.Finish(offset)
+	return b, nil
+}
+
 // Handler handles our http requests.
 func Handler(c *appContext, w http.ResponseWriter, r *http.Request) error {
 	body, err := ioutil.ReadAll(r.Body)
@@ -234,11 +369,6 @@ func Handler(c *appContext, w http.ResponseWriter, r *http.Request) error {
 
 	request := graphpipefb.GetRootAsRequest(body, 0)
 	if request.ReqType() == graphpipefb.ReqInferRequest {
-		inferRequest := &graphpipefb.InferRequest{}
-		table := inferRequest.Table()
-		request.Req(&table)
-		inferRequest.Init(table.Bytes, table.Pos)
-
 		requestContext := &RequestContext{
 			builder: fb.NewBuilder(1024),
 		}
@@ -256,37 +386,16 @@ func Handler(c *appContext, w http.ResponseWriter, r *http.Request) error {
 			}
 			requestContext.SetDead()
 		}()
-
-		var outputs []*NativeTensor
-		if c.db == nil {
-			outputs, err = getResults(c, requestContext, inferRequest)
-		} else {
-			outputs, err = getResultsCached(c, requestContext, inferRequest)
-		}
-		if requestContext.CleanupFunc != nil {
-			defer requestContext.CleanupFunc()
-		}
+		inferRequest := &graphpipefb.InferRequest{}
+		table := inferRequest.Table()
+		request.Req(&table)
+		inferRequest.Init(table.Bytes, table.Pos)
+		b, err := c._Infer(inferRequest, requestContext)
 		if err != nil {
-			return StatusError{400, err}
-		}
-		b := requestContext.builder
-
-		outputOffsets := make([]fb.UOffsetT, len(outputs))
-		for i := 0; i < len(outputs); i++ {
-			outputOffsets[i] = outputs[i].Build(b)
+			return err
 		}
 
-		graphpipefb.InferResponseStartOutputTensorsVector(b, len(outputOffsets))
-		for i := len(outputOffsets) - 1; i >= 0; i-- {
-			offset := outputOffsets[i]
-			b.PrependUOffsetT(offset)
-		}
-		tensors := b.EndVector(len(outputOffsets))
-		graphpipefb.InferResponseStart(b)
-		graphpipefb.InferResponseAddOutputTensors(b, tensors)
-
-		inferResponseOffset := graphpipefb.InferResponseEnd(b)
-		tmp := Serialize(b, inferResponseOffset)
+		tmp := b.FinishedBytes()
 		io.Copy(w, bytes.NewReader(tmp))
 
 		return nil
@@ -297,7 +406,6 @@ func Handler(c *appContext, w http.ResponseWriter, r *http.Request) error {
 	tmp := Serialize(b, offset)
 	io.Copy(w, bytes.NewReader(tmp))
 	return nil
-	// return errors.New("Unhandled request type")
 }
 
 func isReadyHandler(c *appContext, w http.ResponseWriter, r *http.Request) error {
