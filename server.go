@@ -6,10 +6,8 @@
 package graphpipe
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -20,6 +18,10 @@ import (
 	bolt "github.com/coreos/bbolt"
 	fb "github.com/google/flatbuffers/go"
 	graphpipefb "github.com/oracle/graphpipe-go/graphpipefb"
+	"os"
+	"os/signal"
+	"syscall"
+	"github.com/gen2brain/shm"
 )
 
 // Error is our wrapper around the error interface.
@@ -113,6 +115,7 @@ type GetHandlerFunc func(http.ResponseWriter, *http.Request, []byte) error
 
 // ServeRawOptions is just a call parameter struct.
 type ServeRawOptions struct {
+	DomainSocket   string
 	Listen         string
 	CacheFile      string
 	Meta           *NativeMetadataResponse
@@ -144,8 +147,9 @@ func ServeRaw(opts *ServeRawOptions) error {
 		}
 		defer c.db.Close()
 	}
+	go setupUdsShmHandler(c, opts.DomainSocket)
 	setupLifecycleRoutes(c)
-	http.Handle("/", appHandler{c, Handler})
+	http.Handle("/", appHandler{c, HttpHandler})
 	logrus.Infof("Listening on '%s'", opts.Listen)
 	err = ListenAndServe(opts.Listen, nil)
 	if err != nil {
@@ -155,6 +159,85 @@ func ServeRaw(opts *ServeRawOptions) error {
 
 	return nil
 }
+
+func setupUdsShmHandler(c *appContext, socketName string) {
+	ln, err := net.Listen("unix", socketName)
+	if err != nil {
+		logrus.Errorf("Listen error: %s", err)
+	} else {
+		logrus.Infof("Listening on socket %s", socketName)
+	}
+
+	// Close the socket on signals.
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+	go func(ln net.Listener, c chan os.Signal) {
+		sig := <-c
+		logrus.Infof("Caught signal %s: shutting down socket", sig)
+		ln.Close()
+	}(ln, sigc)
+
+	for ; ; {
+		fd, err := ln.Accept()
+		if err != nil {
+			logrus.Fatalf("Accept error: %s", err)
+			break
+		} else {
+			logrus.Info("Accepted connection on socket")
+			go udsShmHandler(c, &fd)
+		}
+	}
+}
+
+func udsShmHandler(c *appContext, fd *net.Conn) {
+	// Get the shm id.
+	id, _ := ReadInt(fd)
+	shmData, err := shm.At(int(id), 0, 0)
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		(*fd).Close()
+		shm.Dt(shmData)
+	}()
+	logrus.Infof("Opening shm at id %d\n", id)
+
+	for {
+		startPos, err := ReadInt(fd)
+		reqSize, err := ReadInt(fd)
+		startTime := time.Now()
+		if err != nil {
+			logrus.Infof("Read failed: %s\n", err)
+			break
+		}
+		logrus.Infof("Handling request of size %d", reqSize)
+
+		// Create the builder, using the shared memory.
+		builder := fb.NewBuilder(0)
+		builder.Bytes = shmData
+		builder.Reset()
+		requestContext := &RequestContext{builder: builder}
+		
+		res, err := Handler(shmData[startPos:startPos+reqSize], c, 
+			requestContext)
+
+		respStartPos := builder.Head()
+		respSize := len(res)
+		
+		// Write the response start pos and size
+		err = WriteInt(fd, uint32(respStartPos))
+		err = WriteInt(fd, uint32(respSize))
+		if err != nil {
+			logrus.Errorf("Writing client error: ", err)
+			break
+		} else {
+			duration := time.Now().Sub(startTime)
+			logrus.Infof("Request took %s", duration)
+		}
+	}
+
+}
+
 
 type appContext struct {
 	meta           *NativeMetadataResponse
@@ -218,7 +301,7 @@ func (ah appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // Handler handles our http requests.
-func Handler(c *appContext, w http.ResponseWriter, r *http.Request) error {
+func HttpHandler(c *appContext, w http.ResponseWriter, r *http.Request) error {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return err
@@ -232,6 +315,29 @@ func Handler(c *appContext, w http.ResponseWriter, r *http.Request) error {
 		return nil
 	}
 
+	requestContext := &RequestContext{builder: fb.NewBuilder(1024)}
+
+	notify := w.(http.CloseNotifier).CloseNotify()
+	done := make(chan bool)
+	defer func() {
+		done <- true
+	}()
+
+	go func() {
+		select {
+		case <-notify:
+		case <-done:
+		}
+		requestContext.SetDead()
+	}()
+	
+	resp, err := Handler(body, c, requestContext)
+	w.Write(resp)
+	return err
+}
+
+
+func Handler(body []byte, c *appContext, requestContext *RequestContext) ([]byte, error) {
 	request := graphpipefb.GetRootAsRequest(body, 0)
 	if request.ReqType() == graphpipefb.ReqInferRequest {
 		inferRequest := &graphpipefb.InferRequest{}
@@ -239,24 +345,7 @@ func Handler(c *appContext, w http.ResponseWriter, r *http.Request) error {
 		request.Req(&table)
 		inferRequest.Init(table.Bytes, table.Pos)
 
-		requestContext := &RequestContext{
-			builder: fb.NewBuilder(1024),
-		}
-		notify := w.(http.CloseNotifier).CloseNotify()
-		done := make(chan bool)
-
-		defer func() {
-			done <- true
-		}()
-
-		go func() {
-			select {
-			case <-notify:
-			case <-done:
-			}
-			requestContext.SetDead()
-		}()
-
+		var err error
 		var outputs []*NativeTensor
 		if c.db == nil {
 			outputs, err = getResults(c, requestContext, inferRequest)
@@ -267,7 +356,7 @@ func Handler(c *appContext, w http.ResponseWriter, r *http.Request) error {
 			defer requestContext.CleanupFunc()
 		}
 		if err != nil {
-			return StatusError{400, err}
+			return nil, StatusError{400, err}
 		}
 		b := requestContext.builder
 
@@ -287,16 +376,13 @@ func Handler(c *appContext, w http.ResponseWriter, r *http.Request) error {
 
 		inferResponseOffset := graphpipefb.InferResponseEnd(b)
 		tmp := Serialize(b, inferResponseOffset)
-		io.Copy(w, bytes.NewReader(tmp))
-
-		return nil
+		return tmp, nil
 	}
 
 	b := fb.NewBuilder(1024)
 	offset := c.meta.Build(b)
-	tmp := Serialize(b, offset)
-	io.Copy(w, bytes.NewReader(tmp))
-	return nil
+	tensorBytes := Serialize(b, offset)
+	return tensorBytes, nil
 	// return errors.New("Unhandled request type")
 }
 

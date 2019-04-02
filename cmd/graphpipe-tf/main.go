@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	_ "net/http/pprof"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -43,15 +44,16 @@ func version() string {
 }
 
 type options struct {
-	verbose  bool
-	version  bool
-	cache    bool
-	cacheDir string
-	listen   string
-	model    string
-	inputs   string
-	shape    string
-	outputs  string
+	verbose      bool
+	version      bool
+	cache        bool
+	cacheDir     string
+	domainSocket string
+	listen       string
+	model        string
+	inputs       string
+	shape        string
+	outputs      string
 }
 
 func main() {
@@ -94,6 +96,8 @@ func main() {
 	}
 	f := cmd.Flags()
 	f.StringVarP(&opts.cacheDir, "cache-dir", "d", "~/.graphpipe", "directory for local cache state")
+	f.StringVarP(&opts.domainSocket, "domain-socket", "s", "graphpipe-go.sock", 
+		"where to create the domain socket.")
 	f.StringVarP(&opts.listen, "listen", "l", "127.0.0.1:9000", "listen string")
 	f.StringVarP(&opts.model, "model", "m", "", "tensorflow model to load.  Accepts local file or http(s) url.")
 	f.StringVarP(&opts.inputs, "inputs", "i", "", "comma seprated default inputs")
@@ -372,6 +376,7 @@ func serve(opts options) error {
 	logrus.Infof("Using default outputs %s", dOut)
 
 	serveOpts := &graphpipe.ServeRawOptions{
+		DomainSocket:   opts.domainSocket,
 		Listen:         opts.listen,
 		CacheFile:      cachePath,
 		Meta:           c.meta,
