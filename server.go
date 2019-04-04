@@ -1,12 +1,13 @@
 /*
 ** Copyright © 2018, Oracle and/or its affiliates. All rights reserved.
 ** Licensed under the Universal Permissive License v 1.0 as shown at http://oss.oracle.com/licenses/upl.
-*/
+ */
 
 package graphpipe
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -119,6 +120,7 @@ type ServeRawOptions struct {
 	DefaultInputs  []string
 	DefaultOutputs []string
 	Apply          Applier
+	RESTApply      RESTApplier
 	GetHandler     GetHandlerFunc
 }
 
@@ -130,6 +132,7 @@ func ServeRaw(opts *ServeRawOptions) error {
 	c := &appContext{
 		meta:           opts.Meta,
 		apply:          opts.Apply,
+		restApply:      opts.RESTApply,
 		getHandler:     opts.GetHandler,
 		defaultInputs:  opts.DefaultInputs,
 		defaultOutputs: opts.DefaultOutputs,
@@ -145,6 +148,7 @@ func ServeRaw(opts *ServeRawOptions) error {
 		defer c.db.Close()
 	}
 	setupLifecycleRoutes(c)
+	http.Handle("/rest", appHandler{c, RESTHandler})
 	http.Handle("/", appHandler{c, Handler})
 	logrus.Infof("Listening on '%s'", opts.Listen)
 	err = ListenAndServe(opts.Listen, nil)
@@ -159,6 +163,7 @@ func ServeRaw(opts *ServeRawOptions) error {
 type appContext struct {
 	meta           *NativeMetadataResponse
 	apply          Applier
+	restApply      RESTApplier
 	getHandler     GetHandlerFunc
 	defaultInputs  []string
 	defaultOutputs []string
@@ -215,6 +220,27 @@ func (ah appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	duration := time.Now().Sub(startTime)
 	logrus.Infof("Request for %s took %s", r.URL.Path, duration)
+}
+
+// RESTHandler handle rest http requests.
+func RESTHandler(c *appContext, w http.ResponseWriter, r *http.Request) error {
+	dec := json.NewDecoder(r.Body)
+	inputs := make(map[string]json.RawMessage)
+	err := dec.Decode(&inputs)
+	if err != nil {
+		return StatusError{400, err}
+	}
+	ret, err := c.restApply(inputs,
+		c.defaultOutputs)
+	if err != nil {
+		return StatusError{400, err}
+	}
+	enc := json.NewEncoder(w)
+	err = enc.Encode(ret)
+	if err != nil {
+		return StatusError{400, err}
+	}
+	return nil
 }
 
 // Handler handles our http requests.
