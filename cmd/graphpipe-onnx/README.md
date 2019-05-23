@@ -1,4 +1,4 @@
-# graphpipe-ONNX - Serve TensorFlow Models via Graphpipe
+# graphpipe-ONNX - Serve ONNX Models via Graphpipe
 
 The headlines are true! You can serve your caffe2/ONNX models via graphpipe
 easily using this server.
