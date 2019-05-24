@@ -9,7 +9,7 @@ interested in hacking on `graphpipe-onnx`, read on.
 
 ## Development Quickstart
 Because of the relative complexity of system configuration when dealing with machine
-learning libraries, our dev and build system for graphpipe-tf is 100% docker-driven.
+learning libraries, our dev and build system for graphpipe-onnx is 100% docker-driven.
 
 Our build system can output images in three configurations:
 
